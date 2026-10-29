@@ -130,7 +130,7 @@ The remaining sections:
 | `activation.onMoveInactivePiece.unlockOffset` | home-row lines between the mover's source line and the piece that becomes activatable (-1 = the next soldier in the queue) |
 | `inactive.enterable` | false = no piece may be moved onto a line holding an unactivated piece |
 | `start.mode` | `firstSahhku` (players throw in turn, the first X starts) or `mostSahhku` |
-| `variants.*.soldiersActive` | how many of the leading soldiers start loose; the next one starts activatable |
+| `variants.*.soldiersActive` | how many leading soldiers start loose and one step forward along their track; the next one starts activatable |
 | `win.opponentSoldiersExhausted` | you win when the opponent has no soldiers left |
 
 `RuleSet.validate()` (called by `RuleSetJson.fromJson`) rejects malformed rulesets with a descriptive
@@ -161,6 +161,11 @@ npm run test:e2e  # the Playwright browser suite (see README.md)
 ```
 
 ## Deliberate behaviour, pinned by tests
+
+On the web board, repeated clicks on a shared cell cycle through its currently movable pieces
+(including a recruited king and its soldier). Enter or Space on the focused cell does the same.
+The token and accessible name show the selected piece; clicking a highlighted destination commits
+that piece's move. Selecting or cycling does not spend a die.
 
 * Dice are spent in `dice.useOrder` (X, III, II, blank), so the sáhkku goes first and a blank face last.
 * Only the die currently up for spending can be re-rolled, and only while a sáhkku shows

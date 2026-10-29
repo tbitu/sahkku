@@ -228,6 +228,95 @@ describe("WebMatchController: throw and move phases", () => {
 // ---------------------------------------------------------------------------------- selection
 
 describe("WebMatchController: piece selection and highlighting", () => {
+  it.each([PieceType.King, PieceType.Soldier])("moves shared piece type %i after cycling without spending dice", (movingType) => {
+    const engine = testEngine();
+    const { controller, board } = controllerOn(engine, (position) => {
+      position.add(22, PieceType.King, PieceOwner.P2, true);
+      position.add(19, PieceType.Soldier, PieceOwner.P1, true);
+      position.add(40, PieceType.Soldier, PieceOwner.P2, true);
+      position.setDice(DieFace.Three, DieFace.Three, DieFace.Three);
+      position.phase(TurnPhase.P1move);
+    });
+    const soldier = board.state.places[19].pieces[0];
+    expect(controller.selectPiece(soldier.id)).toBe(true);
+    expect(controller.handlePlaceClick(22)).toBe(true);
+    const king = board.state.places[22].pieces[0];
+    expect(king.type).toBe(PieceType.King);
+    expect(king.owner).toBe(PieceOwner.P1);
+    const before = JSON.stringify(controller.state);
+
+    for (const piece of [king, soldier, king, soldier]) {
+      expect(controller.handlePlaceClick(22)).toBe(true);
+      expect(controller.viewModel.selectedPieceId).toBe(piece.id);
+      expect(controller.viewModel.highlightedPlaces).toEqual(piece.allowedPlaces);
+      expect(JSON.stringify(controller.state)).toBe(before);
+    }
+    if (movingType === PieceType.King) controller.handlePlaceClick(22);
+    const moving = movingType === PieceType.King ? king : soldier;
+    const remaining = movingType === PieceType.King ? soldier : king;
+    expect(controller.viewModel.selectedPieceId).toBe(moving.id);
+    const target = controller.viewModel.highlightedPlaces[0]!;
+    expect(controller.handlePlaceClick(target)).toBe(true);
+    expect(board.state.places[22].pieces).toEqual([remaining]);
+    expect(moving.placeIndex).toBe(target);
+    expect(board.state.currentActiveDie).toBe(2);
+  });
+
+  it("cycles ordinary soldier stacks and wraps to the first piece", () => {
+    const engine = testEngine();
+    const { controller, board } = controllerOn(engine, (position) => {
+      position.add(19, PieceType.Soldier, PieceOwner.P1, true);
+      position.add(19, PieceType.Soldier, PieceOwner.P1, true);
+      position.add(40, PieceType.Soldier, PieceOwner.P2, true);
+      position.setDice(DieFace.Three, DieFace.Three, DieFace.Three);
+      position.phase(TurnPhase.P1move);
+    });
+    const [first, second] = board.state.places[19].pieces;
+    for (const piece of [first, second, first]) {
+      expect(controller.handlePlaceClick(19)).toBe(true);
+      expect(controller.viewModel.selectedPieceId).toBe(piece.id);
+    }
+    expect(board.state.currentActiveDie).toBe(0);
+  });
+
+  it("skips a blocked soldier when only the shared king can move", () => {
+    const engine = testEngine();
+    const { controller, board } = controllerOn(engine, (position) => {
+      position.add(19, PieceType.King, PieceOwner.P1, true);
+      position.add(19, PieceType.Soldier, PieceOwner.P1, true);
+      position.add(22, PieceType.Soldier, PieceOwner.P2);
+      position.setDice(DieFace.Three, DieFace.Three, DieFace.Three);
+      position.phase(TurnPhase.P1move);
+    });
+    const [king, soldier] = board.state.places[19].pieces;
+    expect(soldier.allowedPlaces).toEqual([]);
+    for (let click = 0; click < 3; click++) {
+      expect(controller.handlePlaceClick(19)).toBe(true);
+      expect(controller.viewModel.selectedPieceId).toBe(king.id);
+    }
+    expect(board.state.currentActiveDie).toBe(0);
+  });
+
+  it("selects the soldier when the king sharing its cell is blocked", () => {
+    const engine = testEngine();
+    const { controller, board } = controllerOn(engine, (position) => {
+      position.add(22, PieceType.King, PieceOwner.P1, true);
+      position.add(22, PieceType.Soldier, PieceOwner.P1, true);
+      position.add(25, PieceType.Soldier, PieceOwner.P1, true);
+      position.add(19, PieceType.Soldier, PieceOwner.P1);
+      position.add(40, PieceType.Soldier, PieceOwner.P2, true);
+      position.setDice(DieFace.Three, DieFace.Three, DieFace.Three);
+      position.phase(TurnPhase.P1move);
+    });
+    const [king, soldier] = board.state.places[22].pieces;
+    expect(king.allowedPlaces).toEqual([]);
+    expect(controller.handlePlaceClick(22)).toBe(true);
+    expect(controller.viewModel.selectedPieceId).toBe(soldier.id);
+    expect(controller.handlePlaceClick(25)).toBe(true);
+    expect(board.state.places[22].pieces).toEqual([king]);
+    expect(soldier.placeIndex).toBe(25);
+  });
+
   it("marks every mobile piece of the player to move as selectable", () => {
     const { controller } = evenOddsController([DieFace.Three, DieFace.Three, DieFace.Three]);
     controller.roll();

@@ -214,7 +214,7 @@ export interface SetupRules {
  * towards the rear, so a variant only has to say how many soldiers are already loose.
  */
 export interface VariantRules {
-  /** How many of the leading soldiers start activated; the next one starts activatable. */
+  /** Leading soldiers that start activated and one step forward; the next starts activatable. */
   soldiersActive: number;
 }
 

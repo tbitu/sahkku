@@ -27,6 +27,8 @@ const DICE_COUNT = 3;
 /** Indices into the ruleset's `dice.faces` table (`sahhku`, `three`, `two`, `zero`). */
 const SAHKKU_FACE = 0;
 const THREE_FACE = 1;
+const TWO_FACE = 2;
+const ZERO_FACE = 3;
 
 /** The four-sided sáhkku die, i.e. the divisor that turns a draw into a face index. */
 const DIE_FACE_COUNT = 4;
@@ -291,6 +293,127 @@ test('hotseat: selecting a piece highlights its destinations and a move advances
   await expect(statusBar(page)).toContainText(MEN);
   await expect(rollButton(page)).toBeVisible();
 });
+
+for (const variant of ['evenOdds', 'standard']) {
+  test(`hotseat: ${variant} opening has exact positions for both players`, async ({ page }) => {
+    await seedDice(page);
+    await openClient(page);
+    await applySetup(page, { mode: 'hotseat_2p', starter: 'P1' });
+    await page.selectOption('#variant-select', variant);
+
+    const actual = await page.locator('#board .cell').evaluateAll((cells) =>
+      cells.flatMap((cell) =>
+        [...cell.querySelectorAll('.cell-pieces .piece')].map((piece) => ({
+          place: Number(cell.dataset.place),
+          type: ['soldier', 'queen', 'king'].find((type) => piece.classList.contains(`piece--${type}`)),
+          owner: ['p1', 'p2', 'neutral'].find((owner) => piece.classList.contains(`piece--${owner}`)),
+          active: piece.classList.contains('piece--active'),
+        })),
+      ).sort((a, b) => a.place - b.place),
+    );
+    const expected = [];
+    for (let arc = 0; arc < BOARD_COLUMNS; arc += 1) {
+      const active = variant === 'evenOdds' && arc >= 12;
+      expected.push({ place: arc + (active ? 1 : 0), type: 'soldier', owner: 'p1', active });
+      expected.push({ place: 44 - arc - (active ? 1 : 0), type: 'soldier', owner: 'p2', active });
+    }
+    expected.push(
+      { place: 18, type: 'queen', owner: 'p1', active: false },
+      { place: 26, type: 'queen', owner: 'p2', active: false },
+      { place: 22, type: 'king', owner: 'neutral', active: false },
+    );
+    expect(actual).toEqual(expected.sort((a, b) => a.place - b.place));
+    await expect(statusBar(page)).toHaveAttribute('data-phase', 'roll');
+    await expect(statusBar(page)).toContainText(WOMEN);
+  });
+}
+
+for (const touch of [false, true]) {
+  test.describe(`shared position (${touch ? 'narrow touch screen' : 'desktop'})`, () => {
+    test.use({ hasTouch: touch, viewport: touch ? { width: 390, height: 844 } : { width: 1280, height: 720 } });
+
+    test('cycles king and soldier visibly and by keyboard, then moves the soldier alone', async ({ page }) => {
+      const failures = watchForFailures(page);
+      await seedDice(page);
+      await openClient(page);
+      await applySetup(page, { mode: 'hotseat_2p', starter: 'P2' });
+      const cell = (place) => page.locator(`#board .cell[data-place="${place}"]`);
+      const activate = async (target) => {
+        if (touch) await target.tap();
+        else await target.click();
+      };
+      const move = async (from, to) => {
+        await activate(cell(from));
+        await expect(cell(to)).toHaveClass(/is-highlight/);
+        await activate(cell(to));
+      };
+      const roll = async (faces) => {
+        await planDice(page, faces);
+        await activate(rollButton(page));
+      };
+
+      // P2 reaches the enemy home row, recruiting and activating the neutral king.
+      // Blanks pass P1's intervening turns without changing its remaining soldiers.
+      await roll([TWO_FACE]);
+      await move(29, 27);
+      await move(27, 25);
+      await move(25, 23);
+      await roll([ZERO_FACE]);
+      await roll([TWO_FACE]);
+      await move(23, 21);
+      await move(21, 19);
+      await move(19, 17);
+      await roll([ZERO_FACE]);
+      await roll([TWO_FACE]);
+      await move(17, 15);
+      await move(15, 13);
+      await move(30, 28);
+      await expect(cell(22).locator('.piece--king.piece--p2.piece--active')).toHaveCount(1);
+
+      // P1 lands on the now-active enemy king to recruit it, leaving the two pieces together.
+      await roll([THREE_FACE, THREE_FACE, TWO_FACE]);
+      await move(14, 17);
+      await move(17, 20);
+      await move(20, 22);
+      await roll([ZERO_FACE]); // P2 passes.
+      await roll([THREE_FACE]);
+      const shared = cell(22);
+      await expect(shared.locator('.stack-badge')).toHaveText('×2');
+      await expect(shared).toHaveAttribute('title', /Click again/);
+      const before = await boardSignature(page);
+
+      await activate(shared);
+      await expect(shared.locator('.piece--king.piece--selected')).toHaveCount(1);
+      await expect(shared).toHaveAccessibleName(/King/);
+      await expect(cell(19)).toHaveClass(/is-highlight/); // Only the king can go backward.
+
+      await activate(shared);
+      await expect(shared.locator('.piece--soldier.piece--selected')).toHaveCount(1);
+      await expect(shared).toHaveAccessibleName(/Woman/);
+      await expect(cell(19)).not.toHaveClass(/is-highlight/);
+      await expect(cell(25)).toHaveClass(/is-highlight/);
+
+      await shared.focus();
+      await shared.press('Enter');
+      await expect(shared.locator('.piece--king.piece--selected')).toHaveCount(1);
+      await shared.press('Space');
+      await expect(shared.locator('.piece--soldier.piece--selected')).toHaveCount(1);
+      await expect(shared).toBeFocused();
+      await expect(page.locator('#dice-tray .die').nth(0)).toHaveClass(/die--active/);
+      // Selection changes the visible token, but no occupant or destination has moved.
+      await expect(cell(22).locator('.stack-badge')).toHaveText('×2');
+      await expect(cell(25).locator('.piece')).toHaveCount(0);
+
+      await activate(cell(25));
+      await expect(shared.locator('.piece--king.piece--p1')).toHaveCount(1);
+      await expect(shared.locator('.stack-badge')).toHaveCount(0);
+      await expect(cell(25).locator('.piece--soldier.piece--p1')).toHaveCount(1);
+      await expect(page.locator('#dice-tray .die').nth(1)).toHaveClass(/die--active/);
+      expect(await boardSignature(page)).not.toEqual(before);
+      failures.expectClean();
+    });
+  });
+}
 
 test('a bot seat answers the human move and hands the turn back', async ({ page }) => {
   await seedDice(page);

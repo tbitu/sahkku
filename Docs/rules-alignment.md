@@ -110,13 +110,11 @@ each is recorded so that a later change is a decision rather than an accident.
    Castle, i.e. x = 12 and x = 2. **Kept: fourth line** (two independent sources plus the shipped board).
 2. **Even-odds starting positions.** The "like odds" extra rule says only that "three of their soldiers
    are taken loose". Because activation also advances a soldier one line, this could mean the three
-   foremost soldiers are loose *in place*, or that they have each already made their activation move
-   (which would put the foremost one on the middle row). **Kept: loose in place**, i.e. today's board,
-   as chosen when this analysis was commissioned. The rule is now expressed as `soldiersActive`, so
-   changing the reading later is a one-line ruleset change and the tests name the chosen behaviour.
-   The old README's note about "the 3 first soldier start from incorrect positions" describes an older bug
-   (the same code once placed them as a column across all three rows, which also threw an exception for
-   an off-board row); that is fixed.
+   foremost soldiers are loose *in place*, or that they have each already made their activation move.
+   **Corrected: each initially loose soldier starts one step forward along its normal track**, for
+   both players; the foremost one therefore starts on the middle row. The former "loose in place"
+   decision was confirmed to be a bug. `soldiersActive` controls how many leading soldiers receive
+   this activation step; the next soldier remains activatable in its original home-row position.
 3. **What the blank face is worth.** Lágesvuon uses zero ("null flytt"), and the ruleset says 0. Some
    neighbouring variants use four. **Kept: 0**, per the Lágesvuon chapter and the PDFs.
 4. **What the king does after being recruited.** The PDFs say the king can be recruited back and forth

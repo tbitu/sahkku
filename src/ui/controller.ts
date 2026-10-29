@@ -521,8 +521,8 @@ export class WebMatchController {
 
   /**
    * Handles a click on a board cell: it commits the selected piece's move when the cell is one of its
-   * legal destinations, shifts the selection when the cell holds another selectable piece, and
-   * otherwise cancels the selection. Clicks that mean nothing are ignored without touching the state.
+   * legal destinations, cycles through selectable pieces sharing a cell, and otherwise cancels the
+   * selection. Clicks that mean nothing are ignored without touching the state.
    */
   handlePlaceClick(placeIndex: number): boolean {
     if (!this.accepts(true)) return false;
@@ -535,10 +535,13 @@ export class WebMatchController {
     }
 
     const cell = this.game.places[placeIndex];
-    const mine = cell.pieces.find(
+    const mine = cell.pieces.filter(
       (piece) => piece.owner === this.game.currentPlayer && piece.isSelectable(),
     );
-    if (mine != null) return this.selectPiece(mine.id);
+    if (mine.length > 0) {
+      const currentIndex = mine.findIndex((piece) => piece.id === this.selected);
+      return this.selectPiece(mine[(currentIndex + 1) % mine.length].id);
+    }
 
     if (this.selected != null) {
       this.selected = null;
@@ -1034,4 +1037,3 @@ export class BotDriver {
     }, this.thinkDelay);
   }
 }
-

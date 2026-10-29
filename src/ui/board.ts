@@ -157,12 +157,15 @@ export class BoardView {
       element.classList.toggle("is-actionable", actionable);
       element.tabIndex = actionable ? 0 : -1;
       element.setAttribute("aria-label", cellLabel(cell, this.translate));
+      element.title = cell.pieces.filter((piece) => piece.selectable).length > 1
+        ? this.translate("board.cell.cycle")
+        : "";
 
       const layer = element.querySelector<HTMLElement>(".cell-pieces");
       if (layer == null) continue;
 
       layer.textContent = "";
-      const top = cell.pieces[0];
+      const top = displayedPiece(cell);
       if (top == null) continue;
 
       layer.appendChild(
@@ -268,7 +271,7 @@ export class BoardView {
 /** The accessible name of a cell: position, what stands on it, and why it is clickable. */
 function cellLabel(cell: CellView, t: Translator): string {
   const position = t("board.cell.position", { x: cell.x + 1, y: cell.y + 1 });
-  const top = cell.pieces[0];
+  const top = displayedPiece(cell);
   if (top == null) {
     return t(cell.highlight ? "board.cell.emptyDestination" : "board.cell.empty", { position });
   }
@@ -278,6 +281,11 @@ function cellLabel(cell: CellView, t: Translator): string {
   ];
   if (cell.pieces.length > 1) parts.push(t("board.cell.stack", { count: cell.pieces.length }));
   if (cell.pieces.some((piece) => piece.selectable)) parts.push(t("board.cell.selectable"));
+  if (cell.pieces.filter((piece) => piece.selectable).length > 1) parts.push(t("board.cell.cycle"));
   if (cell.highlight) parts.push(t("board.cell.legalDestination"));
   return `${position}: ${parts.join(", ")}`;
+}
+
+function displayedPiece(cell: CellView): CellView["pieces"][number] | undefined {
+  return cell.pieces.find((piece) => piece.selected) ?? cell.pieces[0];
 }

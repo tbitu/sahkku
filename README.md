@@ -37,7 +37,7 @@ this repository now builds the 2D web client described below.
 - **Sound and settings** (`src/audio/`, `src/ui/settings.ts`): Web Audio cues synthesised at runtime (no
   audio files), master and sound-effect volumes, mute, and the LLM endpoint, model and timeout — all
   persisted in `localStorage` and read back on the next start.
-- **Verification**: 239 Vitest unit tests over the rules, agents, CLI, audio, locale, settings and match
+- **Verification**: 247 Vitest unit tests over the rules, agents, CLI, audio, locale, settings and match
   controller, plus a headless Playwright suite that drives the real bundle in a real browser.
 
 ---
@@ -54,7 +54,7 @@ npm run dev          # local web server on http://localhost:5173
 | `npm run dev` | Vite dev server for the 2D web client (`http://localhost:5173`). |
 | `npm run build` | Builds the static client into `dist/`. |
 | `npm run preview` | Serves the built bundle (`http://localhost:4173`). |
-| `npm test` | Runs the 239 Vitest unit tests. |
+| `npm test` | Runs the 247 Vitest unit tests. |
 | `npm run test:watch` | The same suite in watch mode. |
 | `npm run typecheck` | `tsc --noEmit` over `src/` and `tests/`. |
 | `npm run bench -- …` | Plays headless matches and evaluation benchmarks. |

@@ -299,17 +299,29 @@ describe("SetupTests", () => {
     expect(engine.validateState(state), "the initial position must satisfy the invariants").toEqual([]);
   });
 
-  it("InitGame_EvenOdds_MarksTheThreeForemostSoldiersLoose", () => {
+  it("InitGame_EvenOdds_AdvancesTheThreeForemostSoldiersOneStep", () => {
     const engine = engineFromShippedRuleset();
+    const standard = engine.initGame(new EngineOptions(PieceOwner.P1, false));
     const state = engine.initGame(new EngineOptions(PieceOwner.P1, true));
 
-    // The activation queue runs from the foremost soldier backwards, so "three soldiers are
-    // taken loose" means the three foremost ones are active and the fourth awaits its X.
-    const active = [14, 30, 13, 31, 12, 32];
-    for (const index of active) {
-      expect(state.places[index].pieces[0].isActive, `active ${index}`).toBe(true);
-      expect(state.places[index].pieces[0].canBeActivated, `active ${index}`).toBe(false);
+    const movements = new Map([[12, 13], [13, 14], [14, 15], [30, 29], [31, 30], [32, 31]]);
+    for (const original of standard.places.flatMap((place) => place.pieces)) {
+      const piece = engine.findPiece(state, original.id)!;
+      const destination = movements.get(original.placeIndex);
+      expect(piece.placeIndex).toBe(destination ?? original.placeIndex);
+      expect(state.places[piece.placeIndex].pieces).toContain(piece);
+      expect(piece.arc).toBe(original.arc + (destination == null ? 0 : 1));
+      expect(piece.isActive).toBe(destination != null);
+      expect(piece.canBeActivated).toBe(
+        original.type === PieceType.Queen || [11, 33].includes(original.placeIndex),
+      );
     }
+    expect(state.places[12].pieces).toHaveLength(0);
+    expect(state.places[32].pieces).toHaveLength(0);
+    expect(state.places.flatMap((place) => place.pieces)).toHaveLength(33);
+    expect(state.dice).toEqual(standard.dice);
+    expect(state.turnPhase).toBe(standard.turnPhase);
+    expect(state.currentActiveDie).toBe(standard.currentActiveDie);
 
     expect(state.places[11].pieces[0].canBeActivated).toBe(true);
     expect(state.places[33].pieces[0].canBeActivated).toBe(true);
@@ -319,6 +331,23 @@ describe("SetupTests", () => {
 
     expect(engine.rules.variants.evenOdds.soldiersActive).toBe(3);
     expect(engine.rules.variants.standard.soldiersActive).toBe(0);
+    expect(engine.validateState(state)).toEqual([]);
+  });
+
+  it.each([1, 4, 14])("InitGame_AdvancesTheConfiguredNumberOfSoldiers (%i)", (count) => {
+    const engine = engineFromShippedRuleset();
+    engine.rules.variants.evenOdds.soldiersActive = count;
+    const state = engine.initGame(new EngineOptions(PieceOwner.P2, true));
+    for (const owner of [PieceOwner.P1, PieceOwner.P2]) {
+      const soldiers = state.places.flatMap((place) => place.pieces)
+        .filter((piece) => piece.type === PieceType.Soldier && piece.owner === owner);
+      expect(soldiers).toHaveLength(15);
+      expect(soldiers.filter((piece) => piece.isActive).map((piece) => piece.arc).sort((a, b) => a - b))
+        .toEqual(Array.from({ length: count }, (_, i) => 16 - count + i));
+      expect(soldiers.filter((piece) => piece.canBeActivated).map((piece) => piece.arc))
+        .toEqual([14 - count]);
+    }
+    expect(state.turnPhase).toBe(TurnPhase.P2roll);
     expect(engine.validateState(state)).toEqual([]);
   });
 
@@ -1631,15 +1660,15 @@ describe("DeterministicParityTests", () => {
   it("Sim1_EvenOdds_EndsInThePinnedOutcome", () => {
     const outcome = playToTheEnd(new EngineOptions(PieceOwner.P1, true), 20240607);
 
-    // Pinned against the C# reference: `sim1-evenOdds-seed20240607`.
+    // Re-pinned after correcting the loose soldiers' opening activation step; the C# opening was wrong.
     expect(outcome).toEqual({
-      steps: 63,
-      winner: PieceOwner.P1,
+      steps: 72,
+      winner: PieceOwner.P2,
       winReason: WinReason.QueenCaptured,
-      p1Captures: 0,
-      p2Captures: 3,
-      rolls: 21,
-      moves: 42,
+      p1Captures: 1,
+      p2Captures: 2,
+      rolls: 24,
+      moves: 48,
       firstHands: [
         "Sahhku,Two,Zero",
         "Three,Three,Two",

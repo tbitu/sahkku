@@ -793,9 +793,8 @@ export class RulesEngine {
   }
 
   /**
-   * Marks the leading soldiers of a player's home row active. The activation queue runs from the
-   * foremost soldier — the one whose forward move leaves the home row — towards the rear, so "the
-   * first N soldiers are loose" fully describes the starting position.
+   * Activates and advances the leading soldiers one step, foremost first, leaving the next soldier
+   * in the home-row queue ready for activation.
    */
   private applyVariant(state: GameState, owner: PieceOwner, variant: VariantRules): void {
     const track = this.trackFor(owner);
@@ -829,8 +828,17 @@ export class RulesEngine {
     }
 
     for (let i = 0; i < soldiers.length; ++i) {
-      if (i < variant.soldiersActive) soldiers[i].isActive = true;
-      else if (i === variant.soldiersActive) soldiers[i].canBeActivated = true;
+      const piece = soldiers[i];
+      if (i < variant.soldiersActive) {
+        const source = state.places[piece.placeIndex];
+        source.pieces.splice(source.pieces.indexOf(piece), 1);
+        piece.arc = track.normalize(arcs[i] + 1);
+        piece.placeIndex = track.placeOf(piece.arc);
+        piece.isActive = true;
+        state.places[piece.placeIndex].pieces.push(piece);
+      } else if (i === variant.soldiersActive) {
+        piece.canBeActivated = true;
+      }
     }
   }
 }
