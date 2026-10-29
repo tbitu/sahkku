@@ -15,6 +15,7 @@
 import { GameState, Move, PieceOwner, RerollDecision } from "../rules/domain";
 import type { RulesEngine } from "../rules/engine";
 import { GameStateFormatter } from "../rules/formatter";
+import sahkkuRulesJson from "../rules/SahkkuRules.json";
 import { HeuristicPlayerAgent } from "./heuristic";
 import type { PlayerAgent } from "./types";
 
@@ -48,7 +49,7 @@ export interface LlmTransport {
 }
 
 /** Default per-request deadline of `FetchLlmTransport`, allowing local LLMs adequate thinking time. */
-export const DefaultTransportTimeoutMs = 30000;
+export const DefaultTransportTimeoutMs = 60000;
 
 /**
  * The shipped transport: plain `fetch` against any OpenAI-compatible endpoint — LM Studio
@@ -118,6 +119,37 @@ function statusSuffix(response: LlmHttpResponse): string {
 // Configuration and the request body
 // ----------------------------------------------------------------------------------------------
 
+/** A single message in an OpenAI-compatible chat-completions request. */
+export interface ChatMessage {
+  role: "system" | "user" | "assistant";
+  content: string;
+}
+
+/** The raw JSON rules specification that the rules engine strictly adheres to. */
+export const SahkkuRulesJson = JSON.stringify(sahkkuRulesJson, null, 2);
+
+/**
+ * The authoritative rules document sent to the LLM on the initial turn, containing the exact
+ * SahkkuRules.json specification that the rules engine interprets.
+ */
+export const SahkkuRulesText = [
+  "# Sáhkku Rules Specification (SahkkuRules.json)",
+  "The game rules engine strictly adheres to the following JSON ruleset:",
+  "```json",
+  SahkkuRulesJson,
+  "```",
+  "",
+  "# Rules Overview",
+  "- Board: Three rows of fifteen lines (y=0: P1 Women, y=2: P2 Men, y=1: shared middle row).",
+  "- Pieces: S1 (P1 soldier), S2 (P2 soldier), Q1 (P1 queen), Q2 (P2 queen), K0 (neutral king).",
+  "- Track: Continuous figure-of-8 loop through the rows (home row -> middle row -> enemy row -> middle row -> home row).",
+  "- Dice: 3 four-sided dice spent in order: X (1 step + activates 1 soldier), III (3 steps), II (2 steps), - (blank, 0 steps).",
+  "- Piece Abilities: Soldiers move forward; Queen moves forward/backward/vertical (loss if captured!); King recruited when landed upon or when a soldier reaches the enemy home row.",
+  "- Win Condition: Capture opponent's Queen OR eliminate all opponent soldiers.",
+].join("\n");
+
+export const SahkkuGameRules = SahkkuRulesText;
+
 export interface LlmConfigInit {
   endpointUrl?: string;
   modelName?: string;
@@ -138,7 +170,7 @@ export class LlmConfig {
   static readonly DefaultModelName = "";
 
   /** Adequate budget for local LLMs and thinking models to respond without prematurely aborting. */
-  static readonly DefaultRequestTimeoutMs = 30000;
+  static readonly DefaultRequestTimeoutMs = 60000;
 
   endpointUrl: string;
   modelName: string;
@@ -150,31 +182,46 @@ export class LlmConfig {
     this.endpointUrl = init.endpointUrl ?? LlmConfig.DefaultEndpointUrl;
     this.modelName = init.modelName ?? LlmConfig.DefaultModelName;
     this.temperature = init.temperature ?? 0.2;
-    this.maxTokens = init.maxTokens ?? 1024;
+    this.maxTokens = init.maxTokens ?? 2048;
     this.requestTimeoutMs = init.requestTimeoutMs ?? LlmConfig.DefaultRequestTimeoutMs;
   }
 }
 
 /**
- * Builds the OpenAI-compatible chat-completions request body. Serialized through `JSON.stringify`
- * rather than hand-rolled string concatenation: the escaping rules of both are the same, and the key
- * order is fixed here so the body stays diffable against the reference implementation's.
+ * Builds the OpenAI-compatible chat-completions request body. Supports either a full list of
+ * `ChatMessage` objects (for multi-turn session history) or a legacy (systemPrompt, userPrompt) pair.
  */
+export function buildLlmChatRequest(
+  config: LlmConfig | null,
+  messages: readonly ChatMessage[],
+): string;
 export function buildLlmChatRequest(
   config: LlmConfig | null,
   systemPrompt: string | null,
   userPrompt: string | null,
+): string;
+export function buildLlmChatRequest(
+  config: LlmConfig | null,
+  systemOrMessages: string | readonly ChatMessage[] | null,
+  userPrompt?: string | null,
 ): string {
   const effective = config ?? new LlmConfig();
+  let messages: readonly ChatMessage[];
+  if (Array.isArray(systemOrMessages)) {
+    messages = systemOrMessages;
+  } else {
+    messages = [
+      { role: "system", content: (systemOrMessages as string) ?? "" },
+      { role: "user", content: userPrompt ?? "" },
+    ];
+  }
+
   const request: Record<string, unknown> = {
     temperature: Math.round((effective.temperature ?? 0) * 1000) / 1000,
-    max_tokens: effective.maxTokens ?? 1024,
+    max_tokens: effective.maxTokens ?? 2048,
     stream: false,
     reasoning_effort: "low",
-    messages: [
-      { role: "system", content: systemPrompt ?? "" },
-      { role: "user", content: userPrompt ?? "" },
-    ],
+    messages,
   };
 
   const model = effective.modelName?.trim();
@@ -434,6 +481,9 @@ export class LlmPlayerAgent implements PlayerAgent {
   private readonly log: ((message: string) => void) | null;
   private readonly fallback: PlayerAgent;
 
+  /** Multi-turn chat session history for the current game. */
+  private sessionMessages: ChatMessage[] = [];
+
   /**
    * @param engine The authority the fallback and the re-roll question consult. May be null only for tests.
    * @param log Optional sink for the agent's decisions and fallbacks (a benchmark passes a counter).
@@ -456,6 +506,16 @@ export class LlmPlayerAgent implements PlayerAgent {
     this.fallback = fallback ?? new HeuristicPlayerAgent(owner, null, engine);
   }
 
+  /** Clears the conversation history so the next turn starts as a fresh session with rules. */
+  resetSession(): void {
+    this.sessionMessages = [];
+  }
+
+  /** Read-only view of the ongoing session messages, primarily for tests and diagnostics. */
+  getSessionMessages(): readonly ChatMessage[] {
+    return this.sessionMessages;
+  }
+
   async decideReroll(state: GameState, signal?: AbortSignal): Promise<RerollDecision> {
     // The engine decides whether a re-roll is even on offer; when it is not, there is nothing to ask.
     if (this.engine != null && state != null && !this.engine.canReroll(state)) {
@@ -467,15 +527,22 @@ export class LlmPlayerAgent implements PlayerAgent {
       return this.fallback.decideReroll(state, signal);
     }
 
+    const isInitialTurn = this.sessionMessages.length === 0;
+    if (isInitialTurn) {
+      this.sessionMessages.push({ role: "system", content: LlmPlayerAgent.RerollSystemPrompt });
+    }
+
+    const boardPrompt = this.buildRerollPrompt(state);
+    const userPrompt = isInitialTurn
+      ? `${SahkkuRulesText}\n\n${boardPrompt}`
+      : boardPrompt;
+
+    this.sessionMessages.push({ role: "user", content: userPrompt });
+
     try {
       throwIfAborted(signal);
 
-      const prompt = this.buildRerollPrompt(state);
-      const requestJson = buildLlmChatRequest(
-        this.config,
-        LlmPlayerAgent.RerollSystemPrompt,
-        prompt,
-      );
+      const requestJson = buildLlmChatRequest(this.config, this.sessionMessages);
       const responseJson = await this.transport.postChatCompletion(
         this.config.endpointUrl,
         requestJson,
@@ -484,14 +551,22 @@ export class LlmPlayerAgent implements PlayerAgent {
 
       const reroll = LlmResponseParser.tryParseReroll(responseJson);
       if (reroll != null) {
+        const decisionText = LlmResponseParser.decisionText(responseJson) ?? JSON.stringify({ reroll });
+        this.sessionMessages.push({ role: "assistant", content: decisionText });
+        while (this.sessionMessages.length > 30) this.sessionMessages.splice(1, 2);
+
         this.writeLog(
           `chose to ${reroll ? "throw the sáhkku die again" : "keep the dice"}${this.reasoningSuffix(responseJson)}`,
         );
         return reroll ? RerollDecision.RerollActiveDie : RerollDecision.KeepDiceAndProceed;
       }
 
+      this.sessionMessages.pop();
       this.writeLog("the endpoint did not answer with a usable reroll decision; deciding heuristically.");
     } catch (error) {
+      if (this.sessionMessages.length > 0 && this.sessionMessages[this.sessionMessages.length - 1].role === "user") {
+        this.sessionMessages.pop();
+      }
       // The match ended while the model was thinking. That is the controller's contract, not a model
       // failure, so it propagates instead of being absorbed by the fallback below. A timeout lands in
       // the *transport's* own deadline, which never sets the caller's signal, so it still recovers.
@@ -518,11 +593,22 @@ export class LlmPlayerAgent implements PlayerAgent {
       return this.fallback.decideMove(state, legalMoves, signal);
     }
 
+    const isInitialTurn = this.sessionMessages.length === 0;
+    if (isInitialTurn) {
+      this.sessionMessages.push({ role: "system", content: LlmPlayerAgent.MoveSystemPrompt });
+    }
+
+    const boardContext = GameStateFormatter.formatPromptContext(state, legalMoves) + LlmPlayerAgent.MoveInstruction;
+    const userPrompt = isInitialTurn
+      ? `${SahkkuRulesText}\n\n${boardContext}`
+      : boardContext;
+
+    this.sessionMessages.push({ role: "user", content: userPrompt });
+
     try {
       throwIfAborted(signal);
 
-      const prompt = GameStateFormatter.formatPromptContext(state, legalMoves) + LlmPlayerAgent.MoveInstruction;
-      const requestJson = buildLlmChatRequest(this.config, LlmPlayerAgent.MoveSystemPrompt, prompt);
+      const requestJson = buildLlmChatRequest(this.config, this.sessionMessages);
       const responseJson = await this.transport.postChatCompletion(
         this.config.endpointUrl,
         requestJson,
@@ -533,6 +619,10 @@ export class LlmPlayerAgent implements PlayerAgent {
       if (moveIndex != null) {
         // The index was checked against the count of the list the engine just produced, so the move is
         // legal by construction: no proposal the model makes can bypass the engine.
+        const decisionText = LlmResponseParser.decisionText(responseJson) ?? JSON.stringify({ move_index: moveIndex });
+        this.sessionMessages.push({ role: "assistant", content: decisionText });
+        while (this.sessionMessages.length > 30) this.sessionMessages.splice(1, 2);
+
         const move = legalMoves[moveIndex];
         this.writeLog(
           `chose move ${moveIndex} of ${legalMoves.length} (${move})${this.reasoningSuffix(responseJson)}`,
@@ -540,8 +630,12 @@ export class LlmPlayerAgent implements PlayerAgent {
         return move;
       }
 
+      this.sessionMessages.pop();
       this.writeLog("the endpoint did not answer with a usable move index; playing the heuristic choice.");
     } catch (error) {
+      if (this.sessionMessages.length > 0 && this.sessionMessages[this.sessionMessages.length - 1].role === "user") {
+        this.sessionMessages.pop();
+      }
       if (signal?.aborted === true) throw error;
       console.warn(`[LlmPlayerAgent] ${this.name}: move request failed:`, error);
       this.writeLog(`the move request failed (${errorMessage(error)}); playing the heuristic choice.`);

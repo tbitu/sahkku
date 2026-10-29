@@ -33,6 +33,7 @@ import {
   LlmConfig,
   LlmPlayerAgent,
   LlmResponseParser,
+  SahkkuGameRules,
   type LlmFetch,
   type LlmHttpResponse,
   type LlmTransport,
@@ -141,6 +142,131 @@ describe("LlmAgentTests", () => {
     const customAgent = new LlmPlayerAgent(PieceOwner.P1, "NPC", transport, customConfig, engine);
     await customAgent.decideMove(board.state, legalMoves);
     expect(transport.requests[1]).toContain('"model":"custom-model"');
+  });
+
+  it("DecideMove_InitialTurn_SendsRulesAndBoardContext", async () => {
+    const engine = testEngine();
+    const board = boardWithChoices(engine);
+    const legalMoves = engine.legalMoves(board.state);
+
+    const transport = new MockLlmTransport(chat('{"move_index": 0, "reasoning": "opening"}'));
+    const subject = agent(engine, transport);
+    await subject.decideMove(board.state, legalMoves);
+
+    expect(transport.calls).toBe(1);
+    const request = JSON.parse(transport.requests[0]);
+    expect(request.messages).toHaveLength(2);
+    expect(request.messages[0].role).toBe("system");
+    expect(request.messages[1].role).toBe("user");
+
+    // The initial prompt must contain the full rules as well as the board state
+    expect(request.messages[1].content).toContain(SahkkuGameRules);
+    expect(request.messages[1].content).toContain("# Sahkku decision context");
+    expect(request.messages[1].content).toContain("## Board");
+    expect(request.messages[1].content).toContain("## Legal moves");
+  });
+
+  it("DecideMove_SubsequentTurn_KeepsSessionAndSendsOnlyBoardContextLater", async () => {
+    const engine = testEngine();
+    const board = boardWithChoices(engine);
+    const legalMoves = engine.legalMoves(board.state);
+
+    const transport = new MockLlmTransport(chat('{"move_index": 0, "reasoning": "step"}'));
+    const subject = agent(engine, transport);
+
+    // Turn 1
+    await subject.decideMove(board.state, legalMoves);
+    expect(transport.calls).toBe(1);
+
+    // Turn 2: into the same agent session
+    await subject.decideMove(board.state, legalMoves);
+    expect(transport.calls).toBe(2);
+
+    const secondRequest = JSON.parse(transport.requests[1]);
+    // The session should now have 4 messages: system, user(turn1), assistant(turn1), user(turn2)
+    expect(secondRequest.messages).toHaveLength(4);
+    expect(secondRequest.messages[0].role).toBe("system");
+    expect(secondRequest.messages[1].role).toBe("user");
+    expect(secondRequest.messages[1].content).toContain(SahkkuGameRules);
+
+    expect(secondRequest.messages[2].role).toBe("assistant");
+    expect(secondRequest.messages[2].content).toContain('"move_index": 0');
+
+    expect(secondRequest.messages[3].role).toBe("user");
+    // Turn 2 contains the new board state, but does NOT re-send the rules
+    expect(secondRequest.messages[3].content).toContain("# Sahkku decision context");
+    expect(secondRequest.messages[3].content).not.toContain(SahkkuGameRules);
+  });
+
+  it("DecideMove_ResetSession_ClearsHistoryAndReincludesRules", async () => {
+    const engine = testEngine();
+    const board = boardWithChoices(engine);
+    const legalMoves = engine.legalMoves(board.state);
+
+    const transport = new MockLlmTransport(chat('{"move_index": 0}'));
+    const subject = agent(engine, transport);
+
+    await subject.decideMove(board.state, legalMoves);
+    expect(subject.getSessionMessages()).toHaveLength(3); // system, user, assistant
+
+    subject.resetSession();
+    expect(subject.getSessionMessages()).toHaveLength(0);
+
+    // Next decision starts fresh with rules in the initial user turn
+    await subject.decideMove(board.state, legalMoves);
+    const request = JSON.parse(transport.requests[1]);
+    expect(request.messages).toHaveLength(2);
+    expect(request.messages[1].content).toContain(SahkkuGameRules);
+  });
+
+  it("DecideReroll_MaintainsSessionAcrossRerollAndMove", async () => {
+    const engine = testEngine();
+    const board = boardWithChoices(engine);
+    const legalMoves = engine.legalMoves(board.state);
+
+    const transport = new MockLlmTransport((req) => {
+      if (req.includes("reroll")) return chat('{"reroll": false, "reasoning": "keep"}');
+      return chat('{"move_index": 0, "reasoning": "advance"}');
+    });
+    const subject = agent(engine, transport);
+
+    // Initial action: reroll decision
+    const reroll = await subject.decideReroll(board.state);
+    expect(reroll).toBe(RerollDecision.KeepDiceAndProceed);
+
+    const rerollReq = JSON.parse(transport.requests[0]);
+    expect(rerollReq.messages).toHaveLength(2);
+    expect(rerollReq.messages[1].content).toContain(SahkkuGameRules);
+    expect(rerollReq.messages[1].content).toContain("Should the sáhkku die be thrown again?");
+
+    // Subsequent action in same turn: move decision
+    const move = await subject.decideMove(board.state, legalMoves);
+    expectSameMove(legalMoves[0], move);
+
+    const moveReq = JSON.parse(transport.requests[1]);
+    // Maintains session: system, user(reroll), assistant(reroll), user(move)
+    expect(moveReq.messages).toHaveLength(4);
+    expect(moveReq.messages[2].content).toContain('"reroll": false');
+    expect(moveReq.messages[3].content).toContain("## Legal moves");
+    expect(moveReq.messages[3].content).not.toContain(SahkkuGameRules);
+  });
+
+  it("Session_CapsHistoryLengthWhileMaintainingSystemPrompt", async () => {
+    const engine = testEngine();
+    const board = boardWithChoices(engine);
+    const legalMoves = engine.legalMoves(board.state);
+
+    const transport = new MockLlmTransport(() => chat('{"move_index": 0}'));
+    const subject = agent(engine, transport);
+
+    // Run 20 decision turns (which without a cap would generate 1 + 20*2 = 41 messages)
+    for (let i = 0; i < 20; i++) {
+      await subject.decideMove(board.state, legalMoves);
+    }
+
+    const messages = subject.getSessionMessages();
+    expect(messages.length).toBeLessThanOrEqual(30);
+    expect(messages[0].role).toBe("system");
   });
 
   it("DecideMove_ReadsMarkdownFencedJSON", async () => {
