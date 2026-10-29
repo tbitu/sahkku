@@ -41,6 +41,11 @@ this repository now builds the 2D web client described below.
   that asks for confirmation before replacing the current match. Setup is labelled **Next game setup**;
   speed still updates the current match. After the match, **Back to board** dismisses the result card
   without changing the final position, and **New game** starts another match without confirmation.
+  A winning capture marks its origin and destination on the board and keeps the victory explanation
+  visible. The result card waits 1.8 seconds so the decisive move can be seen first; reduced-motion
+  preferences disable the capture pulse while retaining the markers.
+  Every move also marks its origin with a dashed outline for 3 seconds, or until the next move.
+  Selection, dice rolls and language changes do not restart the timer; starting a new game clears it.
 - **Localization** (`src/locale/`): North Sámi (`se`), Norwegian (`no`) and English (`en`) string tables,
   switched live from the toolbar — every piece of chrome, an open dialog included, re-letters at once.
 - **Sound and settings** (`src/audio/`, `src/ui/settings.ts`): Web Audio cues synthesised at runtime (no

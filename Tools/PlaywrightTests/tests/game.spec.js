@@ -286,7 +286,8 @@ test('setup dropdowns never start or reset a match', async ({ page }) => {
   failures.expectClean();
 });
 
-test('Back to board leaves the final board until New game is pressed', async ({ page }) => {
+for (const restartDuringReveal of [false, true]) {
+test(`Back to board preserves the winning capture (restart during reveal: ${restartDuringReveal})`, async ({ page }) => {
   const failures = watchForFailures(page);
   await seedDice(page);
   await openClient(page);
@@ -310,13 +311,46 @@ test('Back to board leaves the final board until New game is pressed', async ({ 
   await planDice(page, [TWO_FACE]);
   await rollDice(page);
   await move(23, 25);
+  await page.clock.install();
+  await page.clock.pauseAt(new Date(Date.now() + 1000));
   await move(25, 27);
   await expect(statusBar(page)).toHaveAttribute('data-phase', 'gameover');
+  await expect(page.locator('#modal-root')).toBeEmpty();
+  const origin = page.locator('#board .cell[data-place="25"]');
+  const capture = page.locator('#board .cell[data-place="27"]');
+  await expect(origin).toHaveClass(/is-winning-from/);
+  await expect(capture).toHaveClass(/is-winning-to/);
+  await expect(capture).toHaveAccessibleName(/Winning capture: the queen was captured/);
+  await expect(capture.locator('.piece--p1')).toHaveCount(1);
+  await expect(capture.locator('.piece--queen')).toHaveCount(0);
+  await expect(banner(page)).toHaveClass(/banner--victory/);
+  await expect(banner(page)).toContainText('captured the queen');
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  expect(await capture.evaluate(el => getComputedStyle(el).animationName)).toBe('none');
+  if (restartDuringReveal) {
+    await page.locator('#restart-button').click();
+    await page.clock.runFor(2500);
+    await expect(statusBar(page)).toHaveAttribute('data-phase', 'roll');
+    await expect(page.locator('#modal-root')).toBeEmpty();
+    await expect(page.locator('#board .is-winning-from, #board .is-winning-to')).toHaveCount(0);
+    failures.expectClean();
+    return;
+  }
+  await page.selectOption('#locale-select', 'no');
+  await expect(page.locator('#board .is-winning-to')).toHaveAccessibleName(/Avgjørende slag/);
+  await page.selectOption('#locale-select', 'en');
+  await page.clock.runFor(1799);
+  await expect(page.locator('#modal-root')).toBeEmpty();
+  await page.clock.runFor(1);
+  await expect(page.locator('#modal-root [role="dialog"]')).toBeVisible();
   await expect(page.locator('#restart-button')).toHaveText('New game');
   await expect(page.locator('#restart-button')).toHaveClass(/button--primary/);
   const finalBoard = await boardSignature(page);
   await page.getByRole('button', { name: 'Back to board', exact: true }).click();
   await expect(page.locator('#modal-root')).toBeEmpty();
+  await page.clock.runFor(10000);
+  await expect(banner(page)).toBeVisible();
+  await expect(capture).toHaveClass(/is-winning-to/);
   expect(await boardSignature(page)).toEqual(finalBoard);
   await expect(statusBar(page)).toHaveAttribute('data-phase', 'gameover');
   await expect(page.locator('#restart-button')).toBeFocused();
@@ -332,8 +366,12 @@ test('Back to board leaves the final board until New game is pressed', async ({ 
   await expect(statusBar(page)).toHaveAttribute('data-phase', 'roll');
   await expect(page.locator('#board .piece--queen')).toHaveCount(2);
   await expect(page.locator('#board .piece--soldier.piece--active')).toHaveCount(0);
+  await expect(page.locator('#board .is-winning-from, #board .is-winning-to')).toHaveCount(0);
+  await page.clock.runFor(2000);
+  await expect(page.locator('#modal-root')).toBeEmpty();
   failures.expectClean();
 });
+}
 
 test('lifecycle controls distinguish setup and play and protect a match from accidental restart', async ({ page }) => {
   const failures = watchForFailures(page);
@@ -468,6 +506,51 @@ test('hotseat: selecting a piece highlights its destinations and a move advances
   await expect(statusBar(page)).toHaveAttribute('data-phase', 'roll');
   await expect(statusBar(page)).toContainText(MEN);
   await expect(rollButton(page)).toBeVisible();
+});
+
+test('move origins expire after three seconds without resetting on selection or language changes', async ({ page }) => {
+  const failures = watchForFailures(page);
+  await seedDice(page);
+  await openClient(page);
+  await applySetup(page, { mode: 'hotseat_2p', starter: 'P1' });
+  await planDice(page, PLAY_PLAN);
+  await page.clock.install();
+  await page.clock.pauseAt(new Date(Date.now() + 1000));
+  await rollDice(page);
+  const move = async (from, to) => {
+    await page.locator(`#board .cell[data-place="${from}"]`).click();
+    await page.locator(`#board .cell[data-place="${to}"]`).click();
+  };
+  await move(14, 17);
+  const marker = page.locator('#board .is-move-from');
+  await expect(marker).toHaveCount(1);
+  await expect(marker).toHaveAttribute('data-place', '14');
+  await expect(marker).toHaveAccessibleName(/Last move started here/);
+  expect(await marker.evaluate(el => getComputedStyle(el).outlineStyle)).toBe('dashed');
+  await page.clock.runFor(1000);
+  await move(17, 20);
+  await expect(marker).toHaveCount(1);
+  await expect(marker).toHaveAttribute('data-place', '17');
+  await page.clock.runFor(2000);
+  await page.locator('#board .cell[data-place="20"]').click();
+  await expect(page.locator('#board .is-highlight').first()).toBeVisible();
+  await page.selectOption('#locale-select', 'no');
+  await expect(marker).toHaveAccessibleName(/Siste trekk startet her/);
+  await page.clock.runFor(999);
+  await expect(marker).toHaveCount(1);
+  await page.clock.runFor(1);
+  await expect(marker).toHaveCount(0);
+  await expect(page.locator('#board .is-selected')).toHaveAttribute('data-place', '20');
+  await expect(page.locator('#board .is-highlight').first()).toBeVisible();
+  await page.selectOption('#locale-select', 'en');
+  await expect(marker).toHaveCount(0);
+  await page.locator('#board .cell[data-place="23"]').click();
+  await expect(marker).toHaveAttribute('data-place', '20');
+  await page.locator('#restart-button').click();
+  await expect(marker).toHaveCount(0);
+  await page.clock.runFor(4000);
+  await expect(marker).toHaveCount(0);
+  failures.expectClean();
 });
 
 test('speed changes preserve the current board, dice, turn and selection', async ({ page }) => {

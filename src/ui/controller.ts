@@ -325,6 +325,8 @@ export interface MatchViewModel {
   eventMessages: string[];
 
   gameOver: GameOverView | null;
+  readonly lastMove: Readonly<{ from: number; to: number }> | null;
+  winningMove: { from: number; to: number } | null;
 }
 
 export type MatchListener = (view: MatchViewModel) => void;
@@ -357,6 +359,7 @@ export class WebMatchController {
   private game: GameState;
   private selected: number | null = null;
   private lastEvents: RuleEvent[] = [];
+  private lastMove: Readonly<{ from: number; to: number }> | null = null;
   private readonly listeners = new Set<MatchListener>();
 
   private readonly sounds: SoundPlayer | null;
@@ -592,6 +595,7 @@ export class WebMatchController {
     this.started = true;
     this.selected = null;
     this.lastEvents = [];
+    this.lastMove = null;
     this.publish();
   }
 
@@ -642,7 +646,9 @@ export class WebMatchController {
     if (!this.accepts(human) || this.game.isRollPhase) return false;
     if (!this.engine.isLegalMove(this.game, move)) return false;
 
+    const from = this.engine.findPiece(this.game, move.pieceId)!.placeIndex;
     this.lastEvents = this.engine.applyMove(this.game, move);
+    this.lastMove = { from, to: move.targetPlaceIndex };
     this.selected = null;
     this.playEventSounds(this.lastEvents);
     this.publish();
@@ -760,6 +766,8 @@ export class WebMatchController {
       selectedPieceId: this.selected,
       selectablePieceIds,
       highlightedPlaces,
+      lastMove: this.lastMove,
+      winningMove: state.gameOver && this.lastMove != null ? { ...this.lastMove } : null,
       events: [...this.lastEvents],
       eventMessages: this.lastEvents.map((event) => this.describeEvent(event)),
       gameOver: state.gameOver

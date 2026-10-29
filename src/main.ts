@@ -63,6 +63,8 @@ const BANNER_TIMEOUT_MS = 5200;
 /** How long a notice (an NPC that fell back to the heuristic) stays on screen. */
 const NOTICE_TIMEOUT_MS = 9000;
 
+const VICTORY_REVEAL_MS = 1800;
+
 /**
  * Draws the die faces the way the engine's `IRandomSource` contract asks: uniform indices into the
  * ruleset's own face table, so the client never assumes a face count or an ordering of its own.
@@ -514,6 +516,8 @@ class MatchPresenter {
   private bannerTimer: number | null = null;
   private modalSignature = "";
   private gameOverDismissed = false;
+  private victoryTimer: number | null = null;
+  private victoryReady = false;
   private noticeText: string | null = null;
   private noticeTimer: number | null = null;
   private lastView: MatchViewModel | null = null;
@@ -600,6 +604,7 @@ class MatchPresenter {
     this.updateElapsed();
     this.statusBar.dataset["phase"] = view.phase;
     this.statusBar.dataset["turn"] = view.humanTurn ? "human" : "bot";
+    this.banner.classList.toggle("banner--victory", view.gameOver != null);
     this.showBanner(view.eventMessages);
     this.showGameOver(view.gameOver);
   }
@@ -624,8 +629,8 @@ class MatchPresenter {
     if (this.bannerTimer != null) win.clearTimeout(this.bannerTimer);
     this.bannerTimer = null;
 
-    // A notice owns the banner until its own timer clears it; the events otherwise fade away.
-    if (this.noticeText != null) return;
+    // Keep the winning explanation visible when the player returns to inspect the board.
+    if (this.noticeText != null || this.lastView?.gameOver != null) return;
     this.bannerTimer = win.setTimeout(() => {
       this.banner.hidden = true;
       this.bannerSignature = "";
@@ -634,6 +639,21 @@ class MatchPresenter {
   }
 
   private showGameOver(gameOver: GameOverView | null): void {
+    const win = this.doc.defaultView;
+    if (gameOver == null) {
+      if (this.victoryTimer != null) win?.clearTimeout(this.victoryTimer);
+      this.victoryTimer = null;
+      this.victoryReady = false;
+    } else if (!this.victoryReady && win != null) {
+      if (this.victoryTimer == null) {
+        this.victoryTimer = win.setTimeout(() => {
+          this.victoryTimer = null;
+          this.victoryReady = true;
+          this.showGameOver(this.lastView?.gameOver ?? null);
+        }, VICTORY_REVEAL_MS);
+      }
+      return;
+    }
     if (gameOver == null) this.gameOverDismissed = false;
     if (this.gameOverDismissed) return;
     const signature = gameOver == null ? "" : `${gameOver.winner}:${gameOver.reason}`;

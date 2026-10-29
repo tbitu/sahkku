@@ -610,6 +610,30 @@ describe("WebMatchController: the re-roll decision", () => {
 // ---------------------------------------------------------------------------------- game over
 
 describe("WebMatchController: rule events and game over", () => {
+  it("records human and automated moves, preserving their identity across repaints and clearing on restart", () => {
+    const { controller, engine } = evenOddsController([DieFace.Three, DieFace.Three, DieFace.Three]);
+    expect(controller.viewModel.lastMove).toBeNull();
+    controller.roll();
+    const humanMove = controller.legalMoves[0]!;
+    const humanFrom = engine.findPiece(controller.state, humanMove.pieceId)!.placeIndex;
+    expect(controller.commitMove(humanMove)).toBe(true);
+    const lastMove = controller.viewModel.lastMove;
+    expect(lastMove).toEqual({ from: humanFrom, to: humanMove.targetPlaceIndex });
+    expect(controller.viewModel.winningMove).toBeNull();
+    controller.refresh();
+    expect(controller.viewModel.lastMove).toBe(lastMove);
+    expect(controller.commitMove(new Move(-1, -1))).toBe(false);
+    expect(controller.viewModel.lastMove).toBe(lastMove);
+    controller.setHumanPlayers([]);
+    const botMove = controller.legalMoves[0]!;
+    const botFrom = engine.findPiece(controller.state, botMove.pieceId)!.placeIndex;
+    expect(controller.commitMoveAutomated(botMove)).toBe(true);
+    expect(controller.viewModel.lastMove).not.toBe(lastMove);
+    expect(controller.viewModel.lastMove).toEqual({ from: botFrom, to: botMove.targetPlaceIndex });
+    controller.restart();
+    expect(controller.viewModel.lastMove).toBeNull();
+  });
+
   it("reports the capture, the win and the modal payload when the last enemy soldier falls", () => {
     const engine = testEngine();
     // A huntsman three steps short of player two's only active soldier: the three captures it and
@@ -628,11 +652,13 @@ describe("WebMatchController: rule events and game over", () => {
 
     expect(controller.selectPiece(hunter.id)).toBe(true);
     const destination = controller.viewModel.highlightedPlaces[0]!;
+    const origin = hunter.placeIndex;
     expect(controller.handlePlaceClick(destination)).toBe(true);
 
     const view = controller.viewModel;
     expect(controller.state.gameOver).toBe(true);
     expect(view.phase).toBe("gameover");
+    expect(view.winningMove).toEqual({ from: origin, to: destination });
     expect(view.gameOver).not.toBeNull();
     expect(view.gameOver!.winner).toBe(PieceOwner.P1);
     expect(view.gameOver!.reason).toBe(WinReason.OpponentSoldiersExhausted);
@@ -647,6 +673,10 @@ describe("WebMatchController: rule events and game over", () => {
     expect(controller.selectPiece(hunter.id)).toBe(false);
     expect(controller.handlePlaceClick(destination)).toBe(false);
     expect(controller.viewModel.selectedPieceId).toBeNull();
+    controller.refresh();
+    expect(controller.viewModel.winningMove).toEqual({ from: origin, to: destination });
+    controller.restart();
+    expect(controller.viewModel.winningMove).toBeNull();
   });
 });
 

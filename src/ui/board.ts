@@ -110,6 +110,8 @@ export interface BoardCallbacks {
   onPlaceClick(placeIndex: number): void;
 }
 
+const MOVE_ORIGIN_DURATION_MS = 3000;
+
 export class BoardView {
   private readonly container: HTMLElement;
   private readonly rules: RuleSet;
@@ -118,6 +120,10 @@ export class BoardView {
   private geometry: BoardGeometry;
   private translate: Translator;
   private onPlaceClick: ((placeIndex: number) => void) | null = null;
+  private lastMove: MatchViewModel["lastMove"] = null;
+  private originVisible = false;
+  private originTimer: number | null = null;
+  private lastView: MatchViewModel | null = null;
 
   constructor(container: HTMLElement, rules: RuleSet, translate: Translator = defaultTranslate) {
     this.container = container;
@@ -142,7 +148,22 @@ export class BoardView {
   /** Paints one frame. Safe to call on every state change. */
   render(view: MatchViewModel, callbacks: BoardCallbacks): void {
     this.onPlaceClick = callbacks.onPlaceClick;
+    this.lastView = view;
     const doc = this.container.ownerDocument;
+    if (view.lastMove !== this.lastMove) {
+      const win = doc.defaultView;
+      if (this.originTimer != null) win?.clearTimeout(this.originTimer);
+      this.originTimer = null;
+      this.lastMove = view.lastMove;
+      this.originVisible = view.lastMove != null;
+      if (this.originVisible && view.gameOver == null && win != null) {
+        this.originTimer = win.setTimeout(() => {
+          this.originTimer = null;
+          this.originVisible = false;
+          if (this.lastView != null) this.render(this.lastView, callbacks);
+        }, MOVE_ORIGIN_DURATION_MS);
+      }
+    }
 
     for (const cell of view.cells) {
       const element = this.cellsByPlace[cell.placeIndex];
@@ -155,11 +176,21 @@ export class BoardView {
       element.classList.toggle("has-piece", cell.pieces.length > 0);
       element.classList.toggle("is-selected", cell.pieces.some((piece) => piece.selected));
       element.classList.toggle("is-actionable", actionable);
+      const winningFrom = view.winningMove?.from === cell.placeIndex;
+      const winningTo = view.winningMove?.to === cell.placeIndex;
+      const recentFrom = this.originVisible && view.lastMove?.from === cell.placeIndex;
+      element.classList.toggle("is-move-from", recentFrom);
+      element.classList.toggle("is-winning-from", winningFrom);
+      element.classList.toggle("is-winning-to", winningTo);
       element.tabIndex = actionable ? 0 : -1;
-      element.setAttribute("aria-label", cellLabel(cell, this.translate));
+      const winLabel = winningTo && view.gameOver != null
+        ? this.translate("board.winningCapture", { reason: view.gameOver.reasonLabel })
+        : winningFrom ? this.translate("board.winningFrom")
+        : recentFrom ? this.translate("board.moveFrom") : "";
+      element.setAttribute("aria-label", [cellLabel(cell, this.translate), winLabel].filter(Boolean).join(". "));
       element.title = cell.pieces.filter((piece) => piece.selectable).length > 1
         ? this.translate("board.cell.cycle")
-        : "";
+        : winLabel;
 
       const layer = element.querySelector<HTMLElement>(".cell-pieces");
       if (layer == null) continue;
