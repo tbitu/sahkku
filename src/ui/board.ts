@@ -110,7 +110,7 @@ export interface BoardCallbacks {
   onPlaceClick(placeIndex: number): void;
 }
 
-const MOVE_ORIGIN_DURATION_MS = 3000;
+const MOVE_MARKER_DURATION_MS = 3000;
 
 export class BoardView {
   private readonly container: HTMLElement;
@@ -121,8 +121,8 @@ export class BoardView {
   private translate: Translator;
   private onPlaceClick: ((placeIndex: number) => void) | null = null;
   private lastMove: MatchViewModel["lastMove"] = null;
-  private originVisible = false;
-  private originTimer: number | null = null;
+  private moveMarkersVisible = false;
+  private moveMarkerTimer: number | null = null;
   private lastView: MatchViewModel | null = null;
 
   constructor(container: HTMLElement, rules: RuleSet, translate: Translator = defaultTranslate) {
@@ -152,16 +152,16 @@ export class BoardView {
     const doc = this.container.ownerDocument;
     if (view.lastMove !== this.lastMove) {
       const win = doc.defaultView;
-      if (this.originTimer != null) win?.clearTimeout(this.originTimer);
-      this.originTimer = null;
+      if (this.moveMarkerTimer != null) win?.clearTimeout(this.moveMarkerTimer);
+      this.moveMarkerTimer = null;
       this.lastMove = view.lastMove;
-      this.originVisible = view.lastMove != null;
-      if (this.originVisible && view.gameOver == null && win != null) {
-        this.originTimer = win.setTimeout(() => {
-          this.originTimer = null;
-          this.originVisible = false;
+      this.moveMarkersVisible = view.lastMove != null;
+      if (this.moveMarkersVisible && view.gameOver == null && win != null) {
+        this.moveMarkerTimer = win.setTimeout(() => {
+          this.moveMarkerTimer = null;
+          this.moveMarkersVisible = false;
           if (this.lastView != null) this.render(this.lastView, callbacks);
-        }, MOVE_ORIGIN_DURATION_MS);
+        }, MOVE_MARKER_DURATION_MS);
       }
     }
 
@@ -178,15 +178,18 @@ export class BoardView {
       element.classList.toggle("is-actionable", actionable);
       const winningFrom = view.winningMove?.from === cell.placeIndex;
       const winningTo = view.winningMove?.to === cell.placeIndex;
-      const recentFrom = this.originVisible && view.lastMove?.from === cell.placeIndex;
+      const recentFrom = this.moveMarkersVisible && view.lastMove?.from === cell.placeIndex;
+      const recentTo = this.moveMarkersVisible && view.lastMove?.to === cell.placeIndex;
       element.classList.toggle("is-move-from", recentFrom);
+      element.classList.toggle("is-move-to", recentTo);
       element.classList.toggle("is-winning-from", winningFrom);
       element.classList.toggle("is-winning-to", winningTo);
       element.tabIndex = actionable ? 0 : -1;
       const winLabel = winningTo && view.gameOver != null
         ? this.translate("board.winningCapture", { reason: view.gameOver.reasonLabel })
         : winningFrom ? this.translate("board.winningFrom")
-        : recentFrom ? this.translate("board.moveFrom") : "";
+        : recentFrom ? this.translate("board.moveFrom")
+        : recentTo ? this.translate("board.moveTo") : "";
       element.setAttribute("aria-label", [cellLabel(cell, this.translate), winLabel].filter(Boolean).join(". "));
       element.title = cell.pieces.filter((piece) => piece.selectable).length > 1
         ? this.translate("board.cell.cycle")

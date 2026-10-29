@@ -508,7 +508,7 @@ test('hotseat: selecting a piece highlights its destinations and a move advances
   await expect(rollButton(page)).toBeVisible();
 });
 
-test('move origins expire after three seconds without resetting on selection or language changes', async ({ page }) => {
+test('move origins and destinations expire together without resetting on selection or language changes', async ({ page }) => {
   const failures = watchForFailures(page);
   await seedDice(page);
   await openClient(page);
@@ -523,33 +523,48 @@ test('move origins expire after three seconds without resetting on selection or 
   };
   await move(14, 17);
   const marker = page.locator('#board .is-move-from');
+  const destinationMarker = page.locator('#board .is-move-to');
   await expect(marker).toHaveCount(1);
   await expect(marker).toHaveAttribute('data-place', '14');
   await expect(marker).toHaveAccessibleName(/Last move started here/);
   expect(await marker.evaluate(el => getComputedStyle(el).outlineStyle)).toBe('dashed');
+  await expect(destinationMarker).toHaveCount(1);
+  await expect(destinationMarker).toHaveAttribute('data-place', '17');
+  await expect(destinationMarker).toHaveAccessibleName(/Last move ended here/);
+  expect(await destinationMarker.evaluate(el => getComputedStyle(el).outlineStyle)).toBe('solid');
   await page.clock.runFor(1000);
   await move(17, 20);
   await expect(marker).toHaveCount(1);
   await expect(marker).toHaveAttribute('data-place', '17');
+  await expect(destinationMarker).toHaveCount(1);
+  await expect(destinationMarker).toHaveAttribute('data-place', '20');
   await page.clock.runFor(2000);
   await page.locator('#board .cell[data-place="20"]').click();
   await expect(page.locator('#board .is-highlight').first()).toBeVisible();
   await page.selectOption('#locale-select', 'no');
   await expect(marker).toHaveAccessibleName(/Siste trekk startet her/);
+  await expect(destinationMarker).toHaveAccessibleName(/Siste trekk endte her/);
+  await expect(destinationMarker).toHaveClass(/is-selected/);
   await page.clock.runFor(999);
   await expect(marker).toHaveCount(1);
+  await expect(destinationMarker).toHaveCount(1);
   await page.clock.runFor(1);
   await expect(marker).toHaveCount(0);
+  await expect(destinationMarker).toHaveCount(0);
   await expect(page.locator('#board .is-selected')).toHaveAttribute('data-place', '20');
   await expect(page.locator('#board .is-highlight').first()).toBeVisible();
   await page.selectOption('#locale-select', 'en');
   await expect(marker).toHaveCount(0);
+  await expect(destinationMarker).toHaveCount(0);
   await page.locator('#board .cell[data-place="23"]').click();
   await expect(marker).toHaveAttribute('data-place', '20');
+  await expect(destinationMarker).toHaveAttribute('data-place', '23');
   await page.locator('#restart-button').click();
   await expect(marker).toHaveCount(0);
+  await expect(destinationMarker).toHaveCount(0);
   await page.clock.runFor(4000);
   await expect(marker).toHaveCount(0);
+  await expect(destinationMarker).toHaveCount(0);
   failures.expectClean();
 });
 

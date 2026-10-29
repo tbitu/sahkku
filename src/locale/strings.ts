@@ -182,6 +182,7 @@ const englishStrings = {
   board: {
     winningFrom: "Winning move started here",
     moveFrom: "Last move started here",
+    moveTo: "Last move ended here",
     winningCapture: "Winning capture: {reason}",
     label: "Sáhkku board: three rows of fifteen carved cells",
     row: {
@@ -423,6 +424,7 @@ const northSamiStrings: StringTable = {
   board: {
     winningFrom: "Vuoitovuorru álggii dás",
     moveFrom: "Maŋimuš vuorru álggii dás",
+    moveTo: "Maŋimuš vuorru nogai dás",
     winningCapture: "Vuoitováldin: {reason}",
     label: "Sáhkku-heasta: golbma ráiddu vihttanlogi čuollojuvvon saji",
     row: {
@@ -653,6 +655,7 @@ const norwegianStrings: StringTable = {
     label: "Sáhkku-brett: tre rader med femten skårne ruter",
     winningFrom: "Vinnertrekket startet her",
     moveFrom: "Siste trekk startet her",
+    moveTo: "Siste trekk endte her",
     winningCapture: "Avgjørende slag: {reason}",
     row: {
       home: "{player}s hjemrad",
