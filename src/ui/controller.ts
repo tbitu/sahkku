@@ -1048,6 +1048,7 @@ export class BotDriver {
     } finally {
       if (generation === this.generation) this.onThinkingChange?.(false);
       this.busy = false;
+      if (generation !== this.generation) this.schedule();
     }
   }
 

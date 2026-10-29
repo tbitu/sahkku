@@ -582,6 +582,33 @@ describe("LlmAgentTests", () => {
     expectSameMove(await new HeuristicPlayerAgent(PieceOwner.P1, null, engine)
       .decideMove(board.state, legalMoves) as Move, chosen);
   });
+
+  it("DecideMove_LogsTruncationWhenFinishReasonIsLength", async () => {
+    const engine = testEngine();
+    const board = boardWithChoices(engine);
+    const legalMoves = engine.legalMoves(board.state);
+    const logs: string[] = [];
+
+    const truncatedResponse = JSON.stringify({
+      choices: [
+        {
+          index: 0,
+          finish_reason: "length",
+          message: {
+            role: "assistant",
+            content: "I need to think carefully about this board position. The Queen is...",
+          },
+        },
+      ],
+    });
+
+    const transport = new MockLlmTransport(truncatedResponse);
+    const player = new LlmPlayerAgent(PieceOwner.P1, "NPC", transport, null, engine, (msg) => logs.push(msg));
+
+    const move = await player.decideMove(board.state, legalMoves);
+    expect(move).not.toBeNull();
+    expect(logs.some((l) => l.includes("hit max_tokens limit"))).toBe(true);
+  });
 });
 
 function okResponse(body: string): LlmHttpResponse {

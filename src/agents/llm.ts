@@ -175,14 +175,14 @@ export class LlmConfig {
   endpointUrl: string;
   modelName: string;
   temperature: number;
-  maxTokens: number;
+  maxTokens?: number | null;
   requestTimeoutMs: number;
 
   constructor(init: LlmConfigInit = {}) {
     this.endpointUrl = init.endpointUrl ?? LlmConfig.DefaultEndpointUrl;
     this.modelName = init.modelName ?? LlmConfig.DefaultModelName;
     this.temperature = init.temperature ?? 0.2;
-    this.maxTokens = init.maxTokens ?? 2048;
+    this.maxTokens = init.maxTokens ?? null;
     this.requestTimeoutMs = init.requestTimeoutMs ?? LlmConfig.DefaultRequestTimeoutMs;
   }
 }
@@ -218,11 +218,14 @@ export function buildLlmChatRequest(
 
   const request: Record<string, unknown> = {
     temperature: Math.round((effective.temperature ?? 0) * 1000) / 1000,
-    max_tokens: effective.maxTokens ?? 2048,
     stream: false,
     reasoning_effort: "low",
     messages,
   };
+
+  if (effective.maxTokens != null && effective.maxTokens > 0) {
+    request.max_tokens = effective.maxTokens;
+  }
 
   const model = effective.modelName?.trim();
   if (model && model.length > 0) {
@@ -285,6 +288,18 @@ export class LlmResponseParser {
   static readReasoning(responseBody: string | null): string | null {
     const reasoning = findDecision(responseBody, [LlmResponseParser.ReasoningKey]);
     return reasoning === undefined ? null : readString(reasoning);
+  }
+
+  /** The finish reason reported by the chat completions envelope (e.g. 'stop', 'length'). */
+  static finishReason(responseBody: string | null): string | null {
+    if (responseBody == null || responseBody.length === 0) return null;
+    const root = tryParseObject(responseBody);
+    if (root == null) return null;
+    const choices = root["choices"];
+    if (!Array.isArray(choices) || choices.length === 0) return null;
+    const first = choices[0];
+    if (!isJsonObject(first)) return null;
+    return typeof first["finish_reason"] === "string" ? first["finish_reason"] : null;
   }
 
   /**
@@ -577,7 +592,13 @@ export class LlmPlayerAgent implements PlayerAgent {
       }
 
       this.sessionMessages.pop();
-      this.writeLog("the endpoint did not answer with a usable reroll decision; deciding heuristically.");
+      const finishReason = LlmResponseParser.finishReason(responseJson);
+      if (finishReason === "length") {
+        console.warn(`[LlmPlayerAgent] ${this.name}: reroll output was truncated by max_tokens limit before finishing.`);
+        this.writeLog("the endpoint truncated its response (hit max_tokens limit); deciding heuristically.");
+      } else {
+        this.writeLog("the endpoint did not answer with a usable reroll decision; deciding heuristically.");
+      }
     } catch (error) {
       if (this.sessionMessages.length > 0 && this.sessionMessages[this.sessionMessages.length - 1].role === "user") {
         this.sessionMessages.pop();
@@ -648,7 +669,13 @@ export class LlmPlayerAgent implements PlayerAgent {
       }
 
       this.sessionMessages.pop();
-      this.writeLog("the endpoint did not answer with a usable move index; playing the heuristic choice.");
+      const finishReason = LlmResponseParser.finishReason(responseJson);
+      if (finishReason === "length") {
+        console.warn(`[LlmPlayerAgent] ${this.name}: move output was truncated by max_tokens limit before finishing.`);
+        this.writeLog("the endpoint truncated its response (hit max_tokens limit); playing the heuristic choice.");
+      } else {
+        this.writeLog("the endpoint did not answer with a usable move index; playing the heuristic choice.");
+      }
     } catch (error) {
       if (this.sessionMessages.length > 0 && this.sessionMessages[this.sessionMessages.length - 1].role === "user") {
         this.sessionMessages.pop();

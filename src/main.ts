@@ -436,6 +436,7 @@ export function startSahkkuApp(doc: Document = document): SahkkuApp {
 
   settings.subscribe((preferences) => {
     applyAudioSettings(preferences);
+    updateLiveBots();
   });
 
   applyLocale(i18n.locale);
