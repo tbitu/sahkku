@@ -243,6 +243,28 @@ test('cold launch: the board renders and the console stays clean', async ({ page
   failures.expectClean();
 });
 
+for (const width of [1280, 900, 390, 320]) {
+  test(`board rows are evenly spaced at ${width}px in every language`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 844 });
+    await seedDice(page);
+    await openClient(page);
+    await applySetup(page, { mode: 'hotseat_2p', starter: 'P1' });
+
+    for (const locale of ['en', 'no', 'se']) {
+      await page.selectOption('#locale-select', locale);
+      const rows = await page.locator('#board .cell[data-x="0"]').evaluateAll(cells =>
+        cells.map(cell => {
+          const { y, width, height } = cell.getBoundingClientRect();
+          return { y, width, height };
+        }),
+      );
+      expect(rows).toHaveLength(BOARD_ROWS);
+      expect(Math.abs((rows[1].y - rows[0].y) - (rows[2].y - rows[1].y))).toBeLessThan(1);
+      for (const row of rows) expect(Math.abs(row.width - row.height)).toBeLessThan(1);
+    }
+  });
+}
+
 test('hotseat: selecting a piece highlights its destinations and a move advances the turn', async ({
   page,
 }) => {
@@ -256,6 +278,7 @@ test('hotseat: selecting a piece highlights its destinations and a move advances
   await expect(statusBar(page)).toHaveAttribute('data-turn', 'human');
   await expect(statusBar(page)).toContainText(WOMEN);
   await expect(rollButton(page)).toBeVisible();
+  const boardBefore = await page.locator('#board').boundingBox();
 
   await rollDice(page);
   // A three is spendable from the shipped setup, so the throw opens the move phase instead of passing.
@@ -286,6 +309,11 @@ test('hotseat: selecting a piece highlights its destinations and a move advances
   await expect(page.locator('#board .piece--p1')).toHaveCount(womenBefore);
   await expect(banner(page)).toBeVisible();
   await expect(banner(page)).toContainText(WOMEN);
+  expect(await page.locator('#board').boundingBox()).toEqual(boardBefore);
+  await page.clock.install();
+  await page.clock.fastForward(10000);
+  await expect(banner(page)).toBeHidden();
+  expect(await page.locator('#board').boundingBox()).toEqual(boardBefore);
 
   // Spend the rest of the throw; the last die ends the turn and hands it to the Men.
   await playTurn(page, WOMEN, '.piece--p1');
@@ -501,44 +529,52 @@ test('heuristic levels are selectable and a Hard search can be cancelled by a ne
   failures.expectClean();
 });
 
-test('active AI thinking animates, shows elapsed time after 10 seconds, and resets on cancellation', async ({ page }) => {
-  const failures = watchForFailures(page);
-  // Hold a real worker decision open without depending on machine-specific search speed.
-  await page.route('**/assets/search.worker-*.js', route => route.fulfill({
-    contentType: 'application/javascript', body: 'self.onmessage = () => {};',
-  }));
-  await seedDice(page);
-  await openClient(page);
-  await page.clock.install();
-  await applySetup(page, { mode: 'human_vs_bot', starter: 'P2', speed: 'fast' });
-  await planDice(page, PLAY_PLAN);
-  await page.clock.runFor(1000);
-  await expect(statusBar(page)).toHaveAttribute('data-thinking', 'true');
-  const elapsed = page.locator('.thinking-elapsed');
-  await expect(elapsed).toBeHidden();
-  expect(await statusBar(page).evaluate(el => getComputedStyle(el, '::before').animationName))
-    .toBe('thinking-spin');
-  await page.clock.fastForward(8000);
-  await expect(elapsed).toBeHidden();
-  await page.clock.fastForward(2000);
-  await expect(elapsed).toBeVisible();
-  await expect(elapsed).toContainText(/\d+s elapsed/);
-  await page.locator('#locale-select').selectOption('no');
-  await expect(elapsed).toContainText(/\d+ s brukt/);
-  await page.emulateMedia({ reducedMotion: 'reduce' });
-  expect(await statusBar(page).evaluate(el => getComputedStyle(el, '::before').animationName))
-    .toBe('none');
+for (const width of [1280, 390]) {
+  test(`active AI thinking stays below the board and resets on cancellation at ${width}px`, async ({ page }) => {
+    const failures = watchForFailures(page);
+    await page.setViewportSize({ width, height: 844 });
+    // Hold a real worker decision open without depending on machine-specific search speed.
+    await page.route('**/assets/search.worker-*.js', route => route.fulfill({
+      contentType: 'application/javascript', body: 'self.onmessage = () => {};',
+    }));
+    await seedDice(page);
+    await openClient(page);
+    await page.clock.install();
+    await applySetup(page, { mode: 'human_vs_bot', starter: 'P2', speed: 'fast' });
+    const boardBefore = await page.locator('#board').boundingBox();
+    await planDice(page, PLAY_PLAN);
+    await page.clock.runFor(1000);
+    await expect(statusBar(page)).toHaveAttribute('data-thinking', 'true');
+    expect(await page.locator('#board').boundingBox()).toEqual(boardBefore);
+    const elapsed = page.locator('.thinking-elapsed');
+    await expect(elapsed).toBeHidden();
+    expect(await statusBar(page).evaluate(el => getComputedStyle(el, '::before').animationName))
+      .toBe('thinking-spin');
+    await page.clock.fastForward(8000);
+    await expect(elapsed).toBeHidden();
+    await page.clock.fastForward(2000);
+    await expect(elapsed).toBeVisible();
+    await expect(elapsed).toContainText(/\d+s elapsed/);
+    expect(await page.locator('#board').boundingBox()).toEqual(boardBefore);
+    await page.locator('#locale-select').selectOption('no');
+    await expect(elapsed).toContainText(/\d+ s brukt/);
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    expect(await statusBar(page).evaluate(el => getComputedStyle(el, '::before').animationName))
+      .toBe('none');
 
-  await page.locator('#restart-button').click();
-  await page.clock.runFor(1000);
-  await expect(statusBar(page)).toHaveAttribute('data-thinking', 'true');
-  await expect(elapsed).toBeHidden();
-  await page.locator('#mode-select').selectOption('hotseat_2p');
-  await expect(statusBar(page)).not.toHaveAttribute('data-thinking', 'true');
-  await page.clock.fastForward(20000);
-  await expect(elapsed).toBeHidden();
-  failures.expectClean();
-});
+    const localizedBoardBefore = await page.locator('#board').boundingBox();
+    await page.locator('#restart-button').click();
+    await page.clock.runFor(1000);
+    await expect(statusBar(page)).toHaveAttribute('data-thinking', 'true');
+    await expect(elapsed).toBeHidden();
+    await page.locator('#mode-select').selectOption('hotseat_2p');
+    await expect(statusBar(page)).not.toHaveAttribute('data-thinking', 'true');
+    await page.clock.fastForward(20000);
+    await expect(elapsed).toBeHidden();
+    expect(await page.locator('#board').boundingBox()).toEqual(localizedBoardBefore);
+    failures.expectClean();
+  });
+}
 
 test('the language switcher re-letters the client, including an open dialog', async ({ page }) => {
   await openClient(page);

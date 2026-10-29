@@ -93,7 +93,8 @@ plausible-looking benchmark.
 The browser defaults to Medium. Difficulty is independent of animation speed and is selected for each
 automated seat. Medium/Hard run in a worker; a new game or seat change terminates outstanding work.
 Hard deliberately allows longer thinking. Its finite node budget is larger, not a short UI deadline.
-The thinking status stays visible while the board remains interactive. An animated indicator marks
+The board rows stay evenly spaced, including with localized row labels. Status and event messages sit
+below the board so appearing or wrapping messages do not shift it. An animated indicator marks
 an active AI decision (static with reduced motion); elapsed time appears after 10 seconds and resets
 for each decision, including cancellation or a new match.
 
