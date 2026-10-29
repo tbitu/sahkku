@@ -80,7 +80,7 @@ export type BotSpeed = (typeof BotSpeeds)[number];
 
 /** The pause before a bot acts, per speed. Fast is a pace, not an instant: the board stays readable. */
 export const BotThinkDelayMs: Record<BotSpeed, number> = {
-  kajsa: 1800,
+  kajsa: 2500,
   slow: 1100,
   normal: 520,
   fast: 140,

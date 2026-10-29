@@ -314,7 +314,9 @@ export function startSahkkuApp(doc: Document = document): SahkkuApp {
     startMatch({ bots: { ...setup.bots, p2: readBotKind(bot2Select.value, setup.bots.p2) } });
   });
   speedSelect.addEventListener("change", () => {
-    startMatch({ speed: isBotSpeed(speedSelect.value) ? speedSelect.value : setup.speed });
+    setup = { ...setup, speed: isBotSpeed(speedSelect.value) ? speedSelect.value : setup.speed };
+    botDriver.setThinkDelay(BotThinkDelayMs[setup.speed]);
+    syncToolbar();
   });
   variantSelect.addEventListener("change", () => {
     const variant: VariantChoice = isVariantChoice(variantSelect.value)

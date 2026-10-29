@@ -294,6 +294,36 @@ test('hotseat: selecting a piece highlights its destinations and a move advances
   await expect(rollButton(page)).toBeVisible();
 });
 
+test('speed changes preserve the current board, dice, turn and selection', async ({ page }) => {
+  const failures = watchForFailures(page);
+  await seedDice(page);
+  await openClient(page);
+  await applySetup(page, { mode: 'human_vs_bot', starter: 'P1' });
+  await planDice(page, PLAY_PLAN);
+
+  await rollDice(page);
+  await moveFirstLegalPiece(page, '.piece--p1');
+  await page.locator('#board .cell.is-actionable:has(.piece--p1)').first().click();
+  await expect(page.locator('#board .cell.is-highlight').first()).toBeVisible();
+
+  const snapshot = () => page.locator('#board, #dice-tray, #dice-actions, #status-bar, #banner')
+    .evaluateAll((elements) => elements.map((element) => element.outerHTML));
+  const before = await snapshot();
+
+  for (const speed of ['kajsa', 'slow', 'normal', 'fast']) {
+    await page.selectOption('#speed-select', speed);
+    await expect(page.locator('#speed-select')).toHaveValue(speed);
+    expect(await snapshot()).toEqual(before);
+  }
+
+  await page.locator('#board .cell.is-highlight').first().click();
+  await playTurn(page, WOMEN, '.piece--p1');
+  await expect(statusBar(page)).toContainText(MEN);
+  await expect(statusBar(page)).toHaveAttribute('data-turn', 'bot');
+  await expect(statusBar(page)).toContainText(WOMEN);
+  failures.expectClean();
+});
+
 for (const variant of ['evenOdds', 'standard']) {
   test(`hotseat: ${variant} opening has exact positions for both players`, async ({ page }) => {
     await seedDice(page);
