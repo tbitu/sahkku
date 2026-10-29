@@ -54,9 +54,14 @@
       <section
         class="match-setup"
         id="match-setup"
-        data-i18n-attr="aria-label=menu.setup"
         aria-label="Match setup"
       >
+        <div class="match-setup-heading">
+          <h2 class="panel-title" id="setup-title">Match setup</h2>
+          <p id="setup-hint" data-i18n="menu.nextSetupHint" hidden>
+            Changes apply to the next game. Speed also updates the current game.
+          </p>
+        </div>
         <div class="control">
           <label class="control-label" for="mode-select" data-i18n="menu.modeLabel">Match mode</label>
           <select class="control-select" id="mode-select"></select>
@@ -87,7 +92,6 @@
           type="button"
           class="button button--primary"
           id="restart-button"
-          data-i18n="menu.start"
         >
           Start game
         </button>

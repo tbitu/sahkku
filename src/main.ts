@@ -144,6 +144,7 @@ export function startSahkkuApp(doc: Document = document): SahkkuApp {
   const random = new UniformRandomSource(engine.rules.dice.faces.length);
 
   let setup: MatchSetup = { ...DefaultMatchSetup };
+  let activeMode: GameMode | null = null;
 
   const controller = new WebMatchController(engine, random, engineOptionsFor({
     ...setup, startingPlayer: "P1",
@@ -167,6 +168,17 @@ export function startSahkkuApp(doc: Document = document): SahkkuApp {
   const presenter = new MatchPresenter(doc, banner, modalRoot, statusBar, i18n.t);
 
   const render = (view: MatchViewModel): void => {
+    const playing = view.phase === "roll" || view.phase === "move";
+    const startButton = byId("restart-button");
+    startButton.textContent = i18n.t(
+      view.phase === "setup" ? "menu.start" : playing ? "menu.restart" : "menu.newGame",
+    );
+    startButton.classList.toggle("button--primary", !playing);
+    startButton.classList.toggle("button--secondary", playing);
+    const setupLabel = i18n.t(view.phase === "setup" ? "menu.setup" : "menu.nextSetup");
+    byId("setup-title").textContent = setupLabel;
+    byId("match-setup").setAttribute("aria-label", setupLabel);
+    byId("setup-hint").hidden = view.phase === "setup";
     board.render(view, {
       onPlaceClick: (placeIndex) => {
         controller.handlePlaceClick(placeIndex);
@@ -232,6 +244,7 @@ export function startSahkkuApp(doc: Document = document): SahkkuApp {
   const startMatch = (next: Partial<MatchSetup> = {}): void => {
     setup = { ...setup, ...next, bots: { ...setup.bots, ...(next.bots ?? {}) } };
     botDriver.stop();
+    activeMode = setup.mode;
 
     // The seats are changed before the new game is dealt, so the very first repaint of the fresh match
     // (and any step the driver schedules from it) already belongs to the agents this setup names.
@@ -307,7 +320,8 @@ export function startSahkkuApp(doc: Document = document): SahkkuApp {
   const syncToolbar = (): void => {
     bot1Select.disabled = !isBotSeat(setup, PieceOwner.P1);
     bot2Select.disabled = !isBotSeat(setup, PieceOwner.P2);
-    speedSelect.disabled = !(isBotSeat(setup, PieceOwner.P1) || isBotSeat(setup, PieceOwner.P2));
+    speedSelect.disabled = setup.mode === GameModes.hotseat2p &&
+      (activeMode == null || activeMode === GameModes.hotseat2p);
     modeSelect.value = setup.mode;
     bot1Select.value = setup.bots.p1;
     bot2Select.value = setup.bots.p2;
@@ -349,6 +363,9 @@ export function startSahkkuApp(doc: Document = document): SahkkuApp {
   });
 
   byId("restart-button").addEventListener("click", () => {
+    const phase = controller.viewModel.phase;
+    if ((phase === "roll" || phase === "move") &&
+        !doc.defaultView?.confirm(i18n.t("menu.restartConfirm"))) return;
     startMatch();
   });
   byId("settings-button").addEventListener("click", () => {
@@ -652,7 +669,7 @@ class MatchPresenter {
     const again = doc.createElement("button");
     again.type = "button";
     again.className = "button button--primary";
-    again.textContent = t("gameOver.playAgain");
+    again.textContent = t("gameOver.backToBoard");
     again.addEventListener("click", () => {
       this.gameOverDismissed = true;
       this.modalRoot.textContent = "";

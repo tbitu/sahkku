@@ -135,6 +135,20 @@ body {
 
 /* ------------------------------------------------------------------ status & banner */
 
+.match-setup-heading {
+  flex-basis: 100%;
+}
+
+.match-setup-heading .panel-title {
+  margin-bottom: 0;
+}
+
+.match-setup-heading p {
+  margin: 0.3rem 0 0;
+  color: var(--ink-dim);
+  font-size: 0.85rem;
+}
+
 .status-bar {
   padding: 0.55rem 0.8rem;
   border-radius: 10px;

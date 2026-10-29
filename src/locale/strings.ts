@@ -63,6 +63,11 @@ const englishStrings = {
   },
   menu: {
     start: "Start game",
+    restart: "Restart game…",
+    newGame: "New game",
+    restartConfirm: "End the current game and start a new one with the selected setup?",
+    nextSetup: "Next game setup",
+    nextSetupHint: "Changes apply to the next game. Speed also updates the current game.",
     language: "Language",
     settings: "Settings",
     help: "Rules & help",
@@ -210,7 +215,7 @@ const englishStrings = {
     label: "Game over",
     title: "{player} wins",
     body: "Victory: {reason}.",
-    playAgain: "Play Again",
+    backToBoard: "Back to board",
   },
   settings: {
     title: "Settings",
@@ -296,6 +301,11 @@ const northSamiStrings: StringTable = {
   },
   menu: {
     start: "Álggat spealu",
+    restart: "Álggat spealu ođđasit…",
+    newGame: "Ođđa speallu",
+    restartConfirm: "Heaittihit dálá spealu ja álggahit ođđa spealu válljejuvvon heivehusaiguin?",
+    nextSetup: "Čuovvovaš spealu heivehusat",
+    nextSetupHint: "Rievdadusat gustojit čuovvovaš spellui. Leahttu rievdá maiddái dálá spealus.",
     language: "Giella",
     settings: "Asahusat",
     help: "Njuolggadusat ja veahkki",
@@ -443,7 +453,7 @@ const northSamiStrings: StringTable = {
     label: "Speallu loahpahuvvon",
     title: "{player} vuoitá",
     body: "Vuoitamuš: {reason}.",
-    playAgain: "Speallu ođđasit",
+    backToBoard: "Ruovttoluotta šilljui",
   },
   settings: {
     title: "Asahusat",
@@ -517,6 +527,11 @@ const norwegianStrings: StringTable = {
   },
   menu: {
     start: "Start spill",
+    restart: "Start på nytt…",
+    newGame: "Nytt spill",
+    restartConfirm: "Avslutte det pågående spillet og starte et nytt med det valgte oppsettet?",
+    nextSetup: "Oppsett for neste spill",
+    nextSetupHint: "Endringer gjelder neste spill. Hastighet endres også i det pågående spillet.",
     language: "Språk",
     settings: "Innstillinger",
     help: "Regler og hjelp",
@@ -664,7 +679,7 @@ const norwegianStrings: StringTable = {
     label: "Spillet er over",
     title: "{player} vinner",
     body: "Seier: {reason}.",
-    playAgain: "Spill igjen",
+    backToBoard: "Tilbake til brettet",
   },
   settings: {
     title: "Innstillinger",

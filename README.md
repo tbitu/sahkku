@@ -37,8 +37,10 @@ this repository now builds the 2D web client described below.
   (single player against a bot, local hot-seat, spectator bot-vs-bot, pace, variant, starting player) and
   a rules/help modal. Bot speed can be changed during a match without resetting the board, dice or turn.
   Choose the match setup, then press **Start game**; dropdown changes configure the next match without
-  starting or resetting play. **Play again** dismisses the result card and keeps the final board visible
-  until **Start game** is pressed.
+  starting or resetting play. During play the button becomes a secondary **Restart game…** action
+  that asks for confirmation before replacing the current match. Setup is labelled **Next game setup**;
+  speed still updates the current match. After the match, **Back to board** dismisses the result card
+  without changing the final position, and **New game** starts another match without confirmation.
 - **Localization** (`src/locale/`): North Sámi (`se`), Norwegian (`no`) and English (`en`) string tables,
   switched live from the toolbar — every piece of chrome, an open dialog included, re-letters at once.
 - **Sound and settings** (`src/audio/`, `src/ui/settings.ts`): Web Audio cues synthesised at runtime (no

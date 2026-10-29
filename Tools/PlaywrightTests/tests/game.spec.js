@@ -1,6 +1,10 @@
 // @ts-check
 const { test, expect } = require('@playwright/test');
 
+test.beforeEach(async ({ page }) => {
+  page.on('dialog', dialog => dialog.accept());
+});
+
 /**
  * End-to-end verification of the 2D web client.
  *
@@ -282,7 +286,7 @@ test('setup dropdowns never start or reset a match', async ({ page }) => {
   failures.expectClean();
 });
 
-test('Play again leaves the final board until Start game is pressed', async ({ page }) => {
+test('Back to board leaves the final board until New game is pressed', async ({ page }) => {
   const failures = watchForFailures(page);
   await seedDice(page);
   await openClient(page);
@@ -308,8 +312,10 @@ test('Play again leaves the final board until Start game is pressed', async ({ p
   await move(23, 25);
   await move(25, 27);
   await expect(statusBar(page)).toHaveAttribute('data-phase', 'gameover');
+  await expect(page.locator('#restart-button')).toHaveText('New game');
+  await expect(page.locator('#restart-button')).toHaveClass(/button--primary/);
   const finalBoard = await boardSignature(page);
-  await page.getByRole('button', { name: 'Play Again', exact: true }).click();
+  await page.getByRole('button', { name: 'Back to board', exact: true }).click();
   await expect(page.locator('#modal-root')).toBeEmpty();
   expect(await boardSignature(page)).toEqual(finalBoard);
   await expect(statusBar(page)).toHaveAttribute('data-phase', 'gameover');
@@ -318,10 +324,66 @@ test('Play again leaves the final board until Start game is pressed', async ({ p
   await page.selectOption('#variant-select', 'standard');
   await expect(page.locator('#modal-root')).toBeEmpty();
   expect(await boardSignature(page)).toEqual(finalBoard);
+  await expect(page.locator('#restart-button')).toHaveText('Nytt spill');
+  let confirmations = 0;
+  page.on('dialog', () => { confirmations += 1; });
   await page.locator('#restart-button').click();
+  expect(confirmations).toBe(0);
   await expect(statusBar(page)).toHaveAttribute('data-phase', 'roll');
   await expect(page.locator('#board .piece--queen')).toHaveCount(2);
   await expect(page.locator('#board .piece--soldier.piece--active')).toHaveCount(0);
+  failures.expectClean();
+});
+
+test('lifecycle controls distinguish setup and play and protect a match from accidental restart', async ({ page }) => {
+  const failures = watchForFailures(page);
+  await seedDice(page);
+  await openClient(page);
+  const button = page.locator('#restart-button');
+  await expect(button).toHaveText('Start game');
+  await expect(button).toHaveClass(/button--primary/);
+  await expect(page.locator('#setup-title')).toHaveText('Match setup');
+  await expect(page.locator('#setup-hint')).toBeHidden();
+  await applySetup(page, { mode: 'human_vs_bot', starter: 'P1' });
+  await expect(button).toHaveText('Restart game…');
+  await expect(button).toHaveClass(/button--secondary/);
+  await expect(button).not.toHaveClass(/button--primary/);
+  await expect(page.locator('#setup-title')).toHaveText('Next game setup');
+  await expect(page.locator('#setup-hint')).toBeVisible();
+  await planDice(page, PLAY_PLAN);
+  await rollDice(page);
+  await moveFirstLegalPiece(page, '.piece--p1');
+  await page.locator('#board .cell.is-actionable:has(.piece--p1)').first().click();
+  await expect(page.locator('#dice-tray')).not.toHaveClass(/is-rolling/);
+  const snapshot = () => page.locator('#board, #dice-tray, #dice-actions, #status-bar')
+    .evaluateAll(elements => elements.map(element => element.outerHTML));
+  const before = await snapshot();
+  await page.selectOption('#mode-select', 'hotseat_2p');
+  // The current bot match still has a live speed control, even with a hotseat queued next.
+  await expect(page.locator('#speed-select')).toBeEnabled();
+  await page.selectOption('#variant-select', 'standard');
+  await page.selectOption('#starter-select', 'P2');
+  page.removeAllListeners('dialog');
+  page.once('dialog', async dialog => {
+    expect(dialog.type()).toBe('confirm');
+    expect(dialog.message()).toContain('End the current game');
+    await dialog.dismiss();
+  });
+  await button.click();
+  expect(await snapshot()).toEqual(before);
+  await expect(page.locator('#variant-select')).toHaveValue('standard');
+  await page.selectOption('#locale-select', 'no');
+  await expect(button).toHaveText('Start på nytt…');
+  await expect(page.locator('#setup-title')).toHaveText('Oppsett for neste spill');
+  page.once('dialog', async dialog => {
+    expect(dialog.message()).toContain('Avslutte det pågående spillet');
+    await dialog.accept();
+  });
+  await button.click();
+  await expect(statusBar(page)).toHaveAttribute('data-phase', 'roll');
+  await expect(statusBar(page)).toHaveAttribute('data-turn', 'human');
+  await expect(page.locator('#board .piece--soldier.piece--active')).toHaveCount(0);
+  await expect(page.locator('#speed-select')).toBeDisabled();
   failures.expectClean();
 });
 
@@ -360,7 +422,11 @@ test('hotseat: selecting a piece highlights its destinations and a move advances
   await expect(statusBar(page)).toHaveAttribute('data-turn', 'human');
   await expect(statusBar(page)).toContainText(WOMEN);
   await expect(rollButton(page)).toBeVisible();
-  const boardBefore = await page.locator('#board').boundingBox();
+  const boardBounds = () => page.locator('#board').evaluate(element => {
+    const { x, y, width, height } = element.getBoundingClientRect();
+    return { x: x + window.scrollX, y: y + window.scrollY, width, height };
+  });
+  const boardBefore = await boardBounds();
 
   await rollDice(page);
   // A three is spendable from the shipped setup, so the throw opens the move phase instead of passing.
@@ -391,11 +457,11 @@ test('hotseat: selecting a piece highlights its destinations and a move advances
   await expect(page.locator('#board .piece--p1')).toHaveCount(womenBefore);
   await expect(banner(page)).toBeVisible();
   await expect(banner(page)).toContainText(WOMEN);
-  expect(await page.locator('#board').boundingBox()).toEqual(boardBefore);
+  expect(await boardBounds()).toEqual(boardBefore);
   await page.clock.install();
   await page.clock.fastForward(10000);
   await expect(banner(page)).toBeHidden();
-  expect(await page.locator('#board').boundingBox()).toEqual(boardBefore);
+  expect(await boardBounds()).toEqual(boardBefore);
 
   // Spend the rest of the throw; the last die ends the turn and hands it to the Men.
   await playTurn(page, WOMEN, '.piece--p1');
