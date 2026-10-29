@@ -516,6 +516,21 @@ export class LlmPlayerAgent implements PlayerAgent {
     return this.sessionMessages;
   }
 
+  /**
+   * System prompt tailored to the agent's assigned seat, explicitly telling the model which side
+   * it plays (e.g. Player 2 Men vs Player 1 Women) and what its objective is.
+   */
+  private buildSystemPrompt(): string {
+    const side = this.owner === PieceOwner.P1 ? "Player 1 (Women / Nisu)" : "Player 2 (Men / Almmái)";
+    const opponent = this.owner === PieceOwner.P1 ? "Player 2 (Men / Almmái)" : "Player 1 (Women / Nisu)";
+    return (
+      `You are playing Sáhkku as ${side}.\n` +
+      `Your opponent is ${opponent}. Your objective is to defeat ${opponent} by capturing their Queen or eliminating all of their soldiers, while keeping your Queen safe.\n` +
+      "You will be given the board, the dice in spending order, and the numbered list of legal moves.\n" +
+      'Be concise. Do not produce lengthy internal reasoning. Choose the strongest move and answer ONLY with one JSON object: {"move_index": <number>, "reasoning": "<short reason>"}.'
+    );
+  }
+
   async decideReroll(state: GameState, signal?: AbortSignal): Promise<RerollDecision> {
     // The engine decides whether a re-roll is even on offer; when it is not, there is nothing to ask.
     if (this.engine != null && state != null && !this.engine.canReroll(state)) {
@@ -529,7 +544,7 @@ export class LlmPlayerAgent implements PlayerAgent {
 
     const isInitialTurn = this.sessionMessages.length === 0;
     if (isInitialTurn) {
-      this.sessionMessages.push({ role: "system", content: LlmPlayerAgent.RerollSystemPrompt });
+      this.sessionMessages.push({ role: "system", content: this.buildSystemPrompt() });
     }
 
     const boardPrompt = this.buildRerollPrompt(state);
@@ -595,10 +610,12 @@ export class LlmPlayerAgent implements PlayerAgent {
 
     const isInitialTurn = this.sessionMessages.length === 0;
     if (isInitialTurn) {
-      this.sessionMessages.push({ role: "system", content: LlmPlayerAgent.MoveSystemPrompt });
+      this.sessionMessages.push({ role: "system", content: this.buildSystemPrompt() });
     }
 
-    const boardContext = GameStateFormatter.formatPromptContext(state, legalMoves) + LlmPlayerAgent.MoveInstruction;
+    const sideName = this.owner === PieceOwner.P1 ? "Player 1 (Women)" : "Player 2 (Men)";
+    const instruction = `\nChoose one move for ${sideName}. Be concise. Answer ONLY with JSON: {"move_index": <number>, "reasoning": "<short reason>"}`;
+    const boardContext = GameStateFormatter.formatPromptContext(state, legalMoves) + instruction;
     const userPrompt = isInitialTurn
       ? `${SahkkuRulesText}\n\n${boardContext}`
       : boardContext;
