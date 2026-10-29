@@ -20,6 +20,7 @@ import { RuleSetJson, loadShippedRuleset, type RuleSet } from "../rules/ruleset"
 import { LlmConfigFile, normalizeEndpoint, normalizeModel } from "../agents/config";
 import { HumanPlayerAgent } from "../agents/human";
 import { HeuristicPlayerAgent } from "../agents/heuristic";
+import { difficultyFor } from "../agents/search";
 import { FetchLlmTransport, LlmConfig, LlmPlayerAgent } from "../agents/llm";
 import { RandomPlayerAgent } from "../agents/random";
 import type { HumanInteraction, PlayerAgent } from "../agents/types";
@@ -27,7 +28,7 @@ import { BenchmarkSummary, LlmFallbackCounter } from "./benchmark-stats";
 import { MatchConfig, MatchRunner, SeededRandomSource, type MatchResult } from "./match-runner";
 
 /** The agent kinds one seat can be played by. */
-export const AgentKinds = ["human", "random", "heuristic", "llm"] as const;
+export const AgentKinds = ["human", "random", "easy", "medium", "hard", "heuristic", "llm"] as const;
 export type AgentKind = (typeof AgentKinds)[number];
 
 /** The parsed command line. */
@@ -69,6 +70,12 @@ Options:
   --json             Print the summary as JSON instead of as a table.
   --verbose          Print one line per game and the agents' decisions as they happen.
   --help, -h         Print this help.
+
+Heuristic levels:
+  easy              Greedy whole-board evaluation.
+  medium            Turn planning and tactical opponent replies (default).
+  hard              Deeper/wider chance-weighted adversarial search; can think longer.
+  heuristic         Compatibility alias for medium.
 
 Examples:
   npm run bench -- --games 100 --p1 heuristic --p2 random
@@ -292,7 +299,17 @@ async function runBenchmark(options: CliOptions): Promise<number> {
     if (options.verbose) console.log(describe(result, game, options.games));
   }
 
-  console.log(options.json ? summary.toJsonString(p1.name, p2.name) : summary.toPrettyString(p1.name, p2.name));
+  if (options.json) {
+    const data: unknown = JSON.parse(summary.toJsonString(p1.name, p2.name));
+    if (typeof data !== "object" || data == null) throw new Error("Invalid benchmark summary.");
+    console.log(JSON.stringify({
+      ...data,
+      search: {
+        p1: p1 instanceof HeuristicPlayerAgent ? p1.searchStats : null,
+        p2: p2 instanceof HeuristicPlayerAgent ? p2.searchStats : null,
+      },
+    }));
+  } else console.log(summary.toPrettyString(p1.name, p2.name));
 
   return summary.failures > 0 ? 1 : 0;
 }
@@ -315,8 +332,15 @@ function createAgent(
     case "human":
       return new HumanPlayerAgent(owner, "Human", new HeadlessHumanInteraction());
 
+    case "easy":
+    case "medium":
+    case "hard":
     case "heuristic":
-      return new HeuristicPlayerAgent(owner, "Heuristic", engine);
+      return new HeuristicPlayerAgent(owner, null, engine, {
+        difficulty: difficultyFor(kind) ?? "medium",
+        random: new SeededRandomSource((seed * 31 + owner) | 0),
+        log: message => console.error(message),
+      });
 
     case "random":
       return new RandomPlayerAgent(owner, "Random", new SeededRandomSource((seed * 31 + owner) | 0));

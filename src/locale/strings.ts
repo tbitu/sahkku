@@ -80,6 +80,9 @@ const englishStrings = {
     },
     bots: {
       heuristic: "Heuristic",
+      easy: "Easy — developing player",
+      medium: "Medium — turn planner",
+      hard: "Hard — tactical opponent",
       random: "Random",
       llm: "LLM agent (OpenAI-compatible)",
     },
@@ -122,6 +125,7 @@ const englishStrings = {
     pieceSelected: "{player}: {piece} selected — click a highlighted cell to move it.",
     selectPiece: "{player}: select a piece to move with die {die} of {total}.",
     thinking: "{player} is thinking…",
+    thinkingElapsed: "{seconds}s elapsed",
     gameOver: "{player} wins — {reason}.",
     diceOrder: "Spending die {die} of {total}.",
     diceUnrolled: "The dice are still to be thrown this turn.",
@@ -264,6 +268,7 @@ const englishStrings = {
       "Sáhkku is a traditional game of the Sámi people. This client, its rules engine and its agents are open source.",
   },
   notifications: {
+    searchFallback: "AI search failed — using the emergency heuristic.",
     llmFallback: "The LLM endpoint did not answer — playing the heuristic move.",
     dismiss: "Dismiss",
   },
@@ -307,6 +312,9 @@ const northSamiStrings: StringTable = {
     },
     bots: {
       heuristic: "Heuristtalaš",
+      easy: "Álki",
+      medium: "Gaskamearálaš",
+      hard: "Váttis",
       random: "Soaittáhagas",
       llm: "LLM-agentta (OpenAI-heivvolaš)",
     },
@@ -349,6 +357,7 @@ const northSamiStrings: StringTable = {
     pieceSelected: "{player}: {piece} válljejuvvon — coahkkal merkejuvvon saji sirdit.",
     selectPiece: "{player}: vállje bierggu, mon sirdá birccuin {die} / {total}.",
     thinking: "{player} jurddaša…",
+    thinkingElapsed: "{seconds} s",
     gameOver: "{player} vuoitá — {reason}.",
     diceOrder: "Geavaha birccu {die} / {total}.",
     diceUnrolled: "Birccut eai leat vel bálkkejuvvon dán vuorus.",
@@ -491,6 +500,7 @@ const northSamiStrings: StringTable = {
       "Sáhkku lea sámi álbmoga árbevirolaš speallu. Dát klienta, njuolggadusmotora ja agenttat leat rabas gáldokoda.",
   },
   notifications: {
+    searchFallback: "AI-ohcan ii lihkostuvvan — geavaha heuristtalaš sirdima.",
     llmFallback: "LLM-čujuhus ii vástidan — spealá heuristtalaš sirdima.",
     dismiss: "Čiega",
   },
@@ -522,6 +532,9 @@ const norwegianStrings: StringTable = {
     },
     bots: {
       heuristic: "Heuristisk",
+      easy: "Lett — under utvikling",
+      medium: "Middels — planlegger hele turen",
+      hard: "Vanskelig — taktisk motstander",
       random: "Tilfeldig",
       llm: "LLM-agent (OpenAI-kompatibel)",
     },
@@ -564,6 +577,7 @@ const norwegianStrings: StringTable = {
     pieceSelected: "{player}: {piece} valgt — klikk på en markert rute for å flytte.",
     selectPiece: "{player}: velg en brikke å flytte med terning {die} av {total}.",
     thinking: "{player} tenker…",
+    thinkingElapsed: "{seconds} s brukt",
     gameOver: "{player} vinner — {reason}.",
     diceOrder: "Bruker terning {die} av {total}.",
     diceUnrolled: "Terningene er ikke kastet ennå denne turen.",
@@ -706,6 +720,7 @@ const norwegianStrings: StringTable = {
       "Sáhkku er et tradisjonelt spill for det samiske folket. Denne klienten, regelmotoren og agentene er åpen kildekode.",
   },
   notifications: {
+    searchFallback: "AI-søket feilet — bruker nødheuristikken.",
     llmFallback: "LLM-endepunktet svarte ikke — spiller det heuristiske trekket.",
     dismiss: "Skjul",
   },

@@ -858,6 +858,35 @@ body {
   border-color: rgba(143, 192, 242, 0.35);
 }
 
+.status-bar[data-thinking="true"]::before {
+  content: "";
+  width: 0.9rem;
+  height: 0.9rem;
+  flex: 0 0 auto;
+  margin-right: 0.6rem;
+  border: 2px solid rgba(143, 192, 242, 0.3);
+  border-top-color: #d9e6ff;
+  border-radius: 50%;
+  animation: thinking-spin 0.9s linear infinite;
+}
+
+.thinking-elapsed {
+  margin-left: auto;
+  padding-left: 0.7rem;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+@keyframes thinking-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .status-bar[data-thinking="true"]::before {
+    animation: none;
+  }
+}
+
 /* ------------------------------------------------------------------ settings & help dialogs */
 
 .modal--dialog {

@@ -210,7 +210,7 @@ describe("LlmAgentTests", () => {
     const engine = testEngine();
     const board = boardWithChoices(engine);
     const legalMoves = engine.legalMoves(board.state);
-    const heuristic = HeuristicPlayerAgent.chooseMove(engine, board.state, legalMoves);
+    const heuristic = await new HeuristicPlayerAgent(PieceOwner.P1, null, engine).decideMove(board.state, legalMoves);
 
     const transport = new MockLlmTransport(chat("{}"));
     transport.failure = new Error("Response status code does not indicate success: 500 (Internal Server Error).");
@@ -224,7 +224,7 @@ describe("LlmAgentTests", () => {
     const engine = testEngine();
     const board = boardWithChoices(engine);
     const legalMoves = engine.legalMoves(board.state);
-    const heuristic = HeuristicPlayerAgent.chooseMove(engine, board.state, legalMoves);
+    const heuristic = await new HeuristicPlayerAgent(PieceOwner.P1, null, engine).decideMove(board.state, legalMoves);
 
     // A transport deadline surfaces as a rejection whose reason is *not* the caller's abort, which is
     // exactly how the agent tells a slow model from a cancelled match.
@@ -239,7 +239,7 @@ describe("LlmAgentTests", () => {
     const engine = testEngine();
     const board = boardWithChoices(engine);
     const legalMoves = engine.legalMoves(board.state);
-    const heuristic = HeuristicPlayerAgent.chooseMove(engine, board.state, legalMoves);
+    const heuristic = await new HeuristicPlayerAgent(PieceOwner.P1, null, engine).decideMove(board.state, legalMoves);
 
     const unusable = [
       chat("I am not sure what to play."), // no JSON at all
@@ -302,7 +302,8 @@ describe("LlmAgentTests", () => {
     const subject = new LlmPlayerAgent(PieceOwner.P1, null, null, null, engine);
     const chosen = await subject.decideMove(board.state, legalMoves);
 
-    expectSameMove(HeuristicPlayerAgent.chooseMove(engine, board.state, legalMoves) as Move, chosen);
+    expectSameMove(await new HeuristicPlayerAgent(PieceOwner.P1, null, engine)
+      .decideMove(board.state, legalMoves) as Move, chosen);
     expect(subject.name).toBe("LLM NPC");
     expect(subject.owner).toBe(PieceOwner.P1);
   });
@@ -334,7 +335,8 @@ describe("LlmAgentTests", () => {
     transport.failure = new Error("connection refused");
     const decision = await agent(engine, transport).decideReroll(board.state);
 
-    expect(decision).toBe(HeuristicPlayerAgent.chooseReroll(engine, board.state));
+    expect(decision).toBe(await new HeuristicPlayerAgent(PieceOwner.P1, null, engine)
+      .decideReroll(board.state));
   });
 
   it("DecideReroll_DoesNotAskWhenTheEngineOffersNoReroll", async () => {
@@ -427,7 +429,8 @@ describe("LlmAgentTests", () => {
     const transport = new FetchLlmTransport(fetchImpl, 20);
     const chosen = await agent(engine, transport).decideMove(board.state, legalMoves);
 
-    expectSameMove(HeuristicPlayerAgent.chooseMove(engine, board.state, legalMoves) as Move, chosen);
+    expectSameMove(await new HeuristicPlayerAgent(PieceOwner.P1, null, engine)
+      .decideMove(board.state, legalMoves) as Move, chosen);
   });
 });
 

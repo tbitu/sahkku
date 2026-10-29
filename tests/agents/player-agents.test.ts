@@ -20,6 +20,7 @@ import {
   PieceType,
   RerollDecision,
   TurnPhase,
+  WinReason,
 } from "../../src/rules/domain";
 import type { RulesEngine } from "../../src/rules/engine";
 import { HeuristicPlayerAgent } from "../../src/agents/heuristic";
@@ -149,6 +150,176 @@ describe("PlayerAgentTests", () => {
     const chosen = HeuristicPlayerAgent.chooseMove(engine, board.state, engine.legalMoves(board.state));
     const moved = engine.findPiece(board.state, (chosen as Move).pieceId);
     expect(moved?.arc, "the waiting soldier is the one that should be activated").toBe(0);
+  });
+
+  it.each([PieceOwner.P1, PieceOwner.P2])(
+    "Heuristic_DoesNotAdvanceASafeQueenIntoCaptureForOwner_%s",
+    (owner) => {
+      const engine = testEngine();
+      const board = new Board(engine, owner);
+      const opponent = owner === PieceOwner.P1 ? PieceOwner.P2 : PieceOwner.P1;
+      const queen = board.addOnArc(20, PieceType.Queen, owner, true);
+      const soldier = board.addOnArc(5, PieceType.Soldier, owner, true);
+      const attacker = board.add(engine.placeOfArc(owner, 24), PieceType.Soldier, opponent, true);
+      board.setDice(DieFace.Sahhku);
+      board.phase(owner === PieceOwner.P1 ? TurnPhase.P1move : TurnPhase.P2move);
+      const risky = new Move(queen.id, engine.placeOfArc(owner, 21));
+      const safe = new Move(soldier.id, engine.placeOfArc(owner, 6));
+      const snapshot = board.state.clone();
+
+      expect(engine.isLegalMove(board.state, risky)).toBe(true);
+      expect(engine.isLegalMove(board.state, safe)).toBe(true);
+      expect(HeuristicPlayerAgent.chooseMove(engine, board.state, [risky, safe])).toBe(safe);
+      expect(board.state).toEqual(snapshot);
+
+      engine.applyMove(board.state, risky);
+      board.setDice(DieFace.Three);
+      board.phase(opponent === PieceOwner.P1 ? TurnPhase.P1move : TurnPhase.P2move);
+      engine.applyMove(board.state, new Move(attacker.id, risky.targetPlaceIndex));
+      expect(board.state.gameOver).toBe(true);
+      expect(board.state.winner).toBe(opponent);
+      expect(board.state.winReason).toBe(WinReason.QueenCaptured);
+    },
+  );
+
+  it("Heuristic_DoesNotActivateTheQueenForANonWinningCaptureThatExposesIt", () => {
+    const engine = testEngine();
+    const board = new Board(engine);
+    const queen = board.add(20, PieceType.Queen, PieceOwner.P1, false, true);
+    const soldier = board.add(5, PieceType.Soldier, PieceOwner.P1, true);
+    board.add(21, PieceType.Soldier, PieceOwner.P2, true);
+    board.add(24, PieceType.Soldier, PieceOwner.P2, true);
+    board.setDice(DieFace.Sahhku);
+    board.phase(TurnPhase.P1move);
+    const risky = new Move(queen.id, 21);
+    const safe = new Move(soldier.id, 6);
+
+    expect(HeuristicPlayerAgent.chooseMove(engine, board.state, [risky, safe])).toBe(safe);
+    const clone = board.state.clone();
+    const outcome = engine.tryApplyMove(clone, risky);
+    expect(outcome.success).toBe(true);
+    expect(clone.p1Captures).toBe(1);
+    expect(clone.gameOver).toBe(false);
+  });
+
+  it("Heuristic_CanStillActivateTheQueenWhenItIsSafe", () => {
+    const engine = testEngine();
+    const board = new Board(engine);
+    const queen = board.add(20, PieceType.Queen, PieceOwner.P1, false, true);
+    const soldier = board.add(5, PieceType.Soldier, PieceOwner.P1, true);
+    board.add(24, PieceType.Soldier, PieceOwner.P2, true);
+    board.setDice(DieFace.Sahhku);
+    board.phase(TurnPhase.P1move);
+    const activation = new Move(queen.id, 19);
+    const advance = new Move(soldier.id, 6);
+
+    expect(engine.isLegalMove(board.state, activation)).toBe(true);
+    expect(HeuristicPlayerAgent.chooseMove(engine, board.state, [advance, activation])).toBe(activation);
+  });
+
+  it("Heuristic_DoesNotAddAnotherThreatWhenTheQueenIsAlreadyThreatened", () => {
+    const engine = testEngine();
+    const board = new Board(engine);
+    const queen = board.add(20, PieceType.Queen, PieceOwner.P1, true);
+    const soldier = board.add(5, PieceType.Soldier, PieceOwner.P1, true);
+    board.add(23, PieceType.Soldier, PieceOwner.P2, true);
+    board.add(24, PieceType.Soldier, PieceOwner.P2, true);
+    board.setDice(DieFace.Sahhku);
+    board.phase(TurnPhase.P1move);
+    const moreThreatened = new Move(queen.id, 21);
+    const unchanged = new Move(soldier.id, 6);
+
+    expect(HeuristicPlayerAgent.chooseMove(engine, board.state, [moreThreatened, unchanged])).toBe(unchanged);
+  });
+
+  it("Heuristic_RetreatsToSafetyRatherThanTakingASoldier", () => {
+    const engine = testEngine();
+    const board = new Board(engine);
+    const queen = board.add(20, PieceType.Queen, PieceOwner.P1, true);
+    const soldier = board.add(5, PieceType.Soldier, PieceOwner.P1, true);
+    board.add(23, PieceType.Soldier, PieceOwner.P2, true);
+    board.add(6, PieceType.Soldier, PieceOwner.P2, true);
+    board.setDice(DieFace.Sahhku);
+    board.phase(TurnPhase.P1move);
+    const capture = new Move(soldier.id, 6);
+    const retreat = new Move(queen.id, 19);
+
+    expect(engine.isLegalMove(board.state, retreat)).toBe(true);
+    expect(HeuristicPlayerAgent.chooseMove(engine, board.state, [capture, retreat])).toBe(retreat);
+  });
+
+  it.each([PieceOwner.P1, PieceOwner.P2])(
+    "Heuristic_PrefersTheHomeRowOverAnOtherwiseSafeAdvanceForOwner_%s",
+    (owner) => {
+      const engine = testEngine();
+      const board = new Board(engine, owner);
+      const queen = board.addOnArc(20, PieceType.Queen, owner, true);
+      board.setDice(DieFace.Sahhku);
+      board.phase(owner === PieceOwner.P1 ? TurnPhase.P1move : TurnPhase.P2move);
+      const advance = new Move(queen.id, engine.placeOfArc(owner, 21));
+      const home = new Move(queen.id, engine.placeOfArc(owner, 9));
+
+      expect(engine.isLegalMove(board.state, advance)).toBe(true);
+      expect(engine.isLegalMove(board.state, home)).toBe(true);
+      expect(board.state.places[home.targetPlaceIndex].y).toBe(engine.homeRowOf(owner));
+      expect(HeuristicPlayerAgent.chooseMove(engine, board.state, [advance, home])).toBe(home);
+    },
+  );
+
+  it("Heuristic_DoesNotLetTheHomeRowPreferenceOverrideASafeCapture", () => {
+    const engine = testEngine();
+    const board = new Board(engine);
+    const queen = board.add(20, PieceType.Queen, PieceOwner.P1, true);
+    const soldier = board.add(5, PieceType.Soldier, PieceOwner.P1, true);
+    board.add(6, PieceType.Soldier, PieceOwner.P2, true);
+    board.add(40, PieceType.Soldier, PieceOwner.P2, true);
+    board.setDice(DieFace.Sahhku);
+    board.phase(TurnPhase.P1move);
+    const home = new Move(queen.id, 9);
+    const capture = new Move(soldier.id, 6);
+
+    expect(HeuristicPlayerAgent.chooseMove(engine, board.state, [home, capture])).toBe(capture);
+  });
+
+  it.each([PieceOwner.P1, PieceOwner.P2])(
+    "Heuristic_DoesNotTreatAnExposedHomeRowAsSafeForOwner_%s",
+    (owner) => {
+      const engine = testEngine();
+      const board = new Board(engine, owner);
+      const opponent = owner === PieceOwner.P1 ? PieceOwner.P2 : PieceOwner.P1;
+      const queen = board.addOnArc(20, PieceType.Queen, owner, true);
+      board.add(engine.placeOfArc(owner, 10), PieceType.Soldier, opponent, true);
+      board.setDice(DieFace.Sahhku);
+      board.phase(owner === PieceOwner.P1 ? TurnPhase.P1move : TurnPhase.P2move);
+      const home = new Move(queen.id, engine.placeOfArc(owner, 9));
+      const safe = new Move(queen.id, engine.placeOfArc(owner, 21));
+
+      expect(engine.isLegalMove(board.state, home)).toBe(true);
+      expect(engine.isLegalMove(board.state, safe)).toBe(true);
+      expect(HeuristicPlayerAgent.chooseMove(engine, board.state, [home, safe])).toBe(safe);
+    },
+  );
+
+  it.each([
+    [PieceType.Queen, WinReason.QueenCaptured],
+    [PieceType.Soldier, WinReason.OpponentSoldiersExhausted],
+  ])("Heuristic_TakesAnImmediateWinDespiteQueenExposure_%s", (victimType, reason) => {
+    const engine = testEngine();
+    const board = new Board(engine);
+    const queen = board.add(20, PieceType.Queen, PieceOwner.P1, true);
+    board.add(21, victimType, PieceOwner.P2, true);
+    board.add(23, PieceType.King, PieceOwner.P2, true);
+    board.setDice(DieFace.Sahhku);
+    board.phase(TurnPhase.P1move);
+    const win = new Move(queen.id, 21);
+    const retreat = new Move(queen.id, 9);
+
+    expect(engine.isLegalMove(board.state, retreat)).toBe(true);
+    expect(HeuristicPlayerAgent.chooseMove(engine, board.state, [retreat, win])).toBe(win);
+    engine.applyMove(board.state, win);
+    expect(board.state.gameOver).toBe(true);
+    expect(board.state.winner).toBe(PieceOwner.P1);
+    expect(board.state.winReason).toBe(reason);
   });
 
   it("Heuristic_PlaysAWholeMatchWithoutBreakingTheRules", () => {

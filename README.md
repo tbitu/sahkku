@@ -23,9 +23,13 @@ this repository now builds the 2D web client described below.
 - **Pluggable player agents** (`src/agents/`), one interface (`PlayerAgent`) for every seat:
   - **Human** — the browser board, or the headless runner with `--p1 human`.
   - **Random** — baseline randomized move selection.
-  - **Heuristic** — greedy agent evaluating captures, piece advancement and the king.
+  - **Easy / Medium / Hard** — one shared whole-board evaluator for soldier material and development,
+    activation, mobility, king control and royal safety. Easy chooses one move at a time; Medium
+    plans the remaining dice and probes opponent turns; Hard attempts deeper and wider adversarial
+    search, including our next response. Opponent choices are deliberate, dice are chance-weighted.
+    All levels recognize immediate wins. `heuristic` is a compatibility alias for **Medium**.
   - **LLM** — any OpenAI-compatible `/v1/chat/completions` endpoint (LM Studio, Ollama, vLLM, OpenAI),
-    with a request deadline and a heuristic fallback, so a dead endpoint cannot freeze a match.
+    with a request deadline and a **Medium** fallback, so a dead endpoint cannot freeze a match.
 - **Headless match runner and benchmark** (`src/cli/`): plays bot-vs-bot or LLM-vs-bot matches at full
   speed, applies the turn cap and the timeout rules, and reports the run as a table or as JSON.
 - **Open-license 2D web client** (`src/ui/`): a fluid 15 × 3 carved board, three SVG *birccu* dice with
@@ -37,7 +41,7 @@ this repository now builds the 2D web client described below.
 - **Sound and settings** (`src/audio/`, `src/ui/settings.ts`): Web Audio cues synthesised at runtime (no
   audio files), master and sound-effect volumes, mute, and the LLM endpoint, model and timeout — all
   persisted in `localStorage` and read back on the next start.
-- **Verification**: 247 Vitest unit tests over the rules, agents, CLI, audio, locale, settings and match
+- **Verification**: Vitest unit tests over the rules, agents, CLI, audio, locale, settings and match
   controller, plus a headless Playwright suite that drives the real bundle in a real browser.
 
 ---
@@ -54,10 +58,11 @@ npm run dev          # local web server on http://localhost:5173
 | `npm run dev` | Vite dev server for the 2D web client (`http://localhost:5173`). |
 | `npm run build` | Builds the static client into `dist/`. |
 | `npm run preview` | Serves the built bundle (`http://localhost:4173`). |
-| `npm test` | Runs the 247 Vitest unit tests. |
+| `npm test` | Runs the Vitest unit tests. |
 | `npm run test:watch` | The same suite in watch mode. |
 | `npm run typecheck` | `tsc --noEmit` over `src/` and `tests/`. |
 | `npm run bench -- …` | Plays headless matches and evaluation benchmarks. |
+| `npm run bench:strategy -- …` | Paired-seat, both-setup strategic strength evaluation. |
 | `npm run test:e2e` | Builds the client and runs the Playwright browser suite (see below). |
 
 ### Headless matches and benchmarks
@@ -74,11 +79,75 @@ npm run bench -- --p1 heuristic --p2 llm --endpoint http://localhost:1234/v1 --m
 
 # A reproducible run, one line per game
 npm run bench -- --games 20 --seed 42 --verbose
+
+# Independent difficulty per seat
+npm run bench -- --games 10 --p1 hard --p2 medium --seed 42 --json
 ```
 
 `npm run bench -- --help` lists every option. The runner hands every action to the engine and checks the
 board after each one, so a rule violation ends the run with exit code 1 instead of producing a
 plausible-looking benchmark.
+
+### Heuristic difficulty and search limits
+
+The browser defaults to Medium. Difficulty is independent of animation speed and is selected for each
+automated seat. Medium/Hard run in a worker; a new game or seat change terminates outstanding work.
+Hard deliberately allows longer thinking. Its finite node budget is larger, not a short UI deadline.
+The thinking status stays visible while the board remains interactive. An animated indicator marks
+an active AI decision (static with reduced motion); elapsed time appears after 10 seconds and resets
+for each decision, including cancellation or a new match.
+
+The search uses the rules engine for all moves, captures, recruitment and turn transitions. It
+enumerates dice outcomes with exact multiplicities and solves repeat rerolls as an optimal-stopping
+problem. Soldier exhaustion and queen capture both win immediately; queen advancement alone does not.
+King ownership can transfer, and inactive-piece protection is respected.
+
+Search is **selective**, not an exhaustive solution of Sáhkku. Nonterminal branches are ordered and
+limited per difficulty. Resource exhaustion retains the last fully completed layer; a partial set of
+roll outcomes is never reported as a complete expectation. Hard completes Medium's search layers
+before attempting wider/deeper ones. CLI JSON includes per-seat search counts, completed depths,
+budget limits and failures. The static greedy helper is retained only for an explicitly reported
+emergency fallback and historical regression fixtures.
+
+Seeded tie-breaking varies only equal-valued root choices; speculative search never consumes the dice
+stream. Seeded runs replay within the same AI version. Old `heuristic` game outcomes intentionally
+change because that name now selects Medium.
+
+For strength calibration against deliberate attackers (not just random bots):
+
+```bash
+# Small calibration run; not a statistically validated difficulty claim
+npm run bench:strategy -- --pairs 5 --seed 20261101 --matchup medium-easy --workers 4
+
+# Bounded integration smoke test, never eligible for the strength release gate
+npm run bench:strategy -- --pairs 1 --seed 20261112 --matchup medium-hunter --max-turns 100
+
+# Fresh-seed validation: 200 seed blocks × 2 seats × 2 setups = 800 games per matchup
+npm run bench:strategy -- --pairs 200 --seed 20271101 --matchup hard-medium \
+  --workers 4 --output /tmp/sahkku-hard-medium.json
+```
+
+Matchups also include `easy-hunter`, `medium-hunter`, `hard-hunter` and each level versus `legacy`.
+The hunter explicitly searches winning multi-die sequences and creates queen threats. The harness
+reports paired-seed bootstrap intervals, setup-specific scores, queen losses, exhaustion wins, search
+depths and latency distributions. `releaseGate` remains false unless at least 800 games achieve a
+60% draw-adjusted score and the paired interval excludes 50%, without failures or a reduced turn cap.
+Reports include the turn cap and a policy fingerprint to distinguish changed configurations.
+Until those held-out gates pass, the names describe search capabilities, **not certified win-rate
+rankings**.
+
+Initial bounded integration samples (not held-out strength certification):
+
+| Matchup | Results for the first level | Turn cap |
+|---|---|---|
+| Medium vs Easy | 9 wins, 3 losses | 100 |
+| Medium vs deliberate hunter | 4 wins | 100 |
+| Hard vs Medium | 1 win, 1 loss, 2 draws | 40 |
+
+These samples cover both seats and setups but only three, one and one independent seed blocks,
+respectively. Hard is **not yet proven stronger than Medium**. In the Hard–Medium sample, pooled
+decision latency reached about 15 seconds at p95 under concurrent validation load; longer thinking
+and capped games remain practical limitations. Use the full gates above before declaring a ladder.
 
 The endpoint and model for LLM seats can also live in a shared `llm-config.json`, discovered upwards from
 the working directory or named by `SAHKKU_LLM_CONFIG`; the in-game settings dialog owns the same two

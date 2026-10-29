@@ -1,17 +1,6 @@
 /**
- * The deterministic bot: the 1:1 port of the retired C# `HeuristicPlayerAgent`.
- *
- * It is the controller's fallback whenever another agent fails to answer, so it has to be total,
- * synchronous and reproducible: it scores every legal move with the weights below and takes the
- * highest-scoring one, ties going to the first candidate. Nothing here mutates the live state — every
- * probe runs on a `GameState.clone()`.
- *
- * The weights are the reference implementation's own. They are larger and more finely graded than the
- * "+100 soldier / +1000 queen / +500 queen-safety" summary in the task's L1 contract, and unlike that
- * summary they include an activation bonus; the reference's values are kept because this task is a
- * port and the ported tests (`tests/agents/player-agents.test.ts`, `tests/cli/bench.test.ts`) pin the
- * resulting ordering — in particular "prefer activating a waiting soldier over a simple advance",
- * which a scoring table without `ActivatingPieceScore` cannot express.
+ * Difficulty-aware whole-game opponent. The synchronous static methods retain the historical greedy
+ * policy as an explicit emergency fallback and benchmark reference; normal decisions use turn search.
  */
 
 import {
@@ -24,17 +13,27 @@ import {
   type Piece,
 } from "../rules/domain";
 import type { RulesEngine } from "../rules/engine";
-import type { PlayerAgent } from "./types";
+import type { BotRandomSource, PlayerAgent } from "./types";
+import {
+  searchDecision, type HeuristicDifficulty, type SearchDiagnostics, type SearchExecutor,
+  type SearchOptions, type SearchResult,
+  armyKey,
+} from "./search";
+
+export interface HeuristicOptions {
+  difficulty?: HeuristicDifficulty;
+  random?: BotRandomSource | null;
+  executor?: SearchExecutor;
+  log?: ((message: string) => void) | null;
+  onSearch?: (diagnostics: SearchDiagnostics, durationMs: number) => void;
+}
 
 export class HeuristicPlayerAgent implements PlayerAgent {
   /** Landing on the enemy queen ends the game, so it dominates every other consideration. */
   static readonly CapturingQueenScore = 10000;
 
-  /** Getting the queen out of immediate danger. */
+  /** Per opponent piece/die-face capture opportunity removed (or added, as a penalty). */
   static readonly SavingQueenScore = 5000;
-
-  /** Bonus for activating the queen specifically: it's the game-winning piece. */
-  static readonly ActivatingQueenBonus = 100;
 
   static readonly CapturingSoldierScore = 500;
   static readonly RecruitingKingScore = 400;
@@ -43,23 +42,95 @@ export class HeuristicPlayerAgent implements PlayerAgent {
   /** Per track step advanced towards the opponent's territory. */
   static readonly AdvancePerStepScore = 10;
 
+  static readonly QueenHomeRowScore = 40;
+
   readonly owner: PieceOwner;
   readonly name: string;
 
   private readonly engine: RulesEngine | null;
+  readonly difficulty: HeuristicDifficulty;
+  lastSearch: SearchDiagnostics | null = null;
+  readonly searchStats: {
+    decisions: number; nodes: number; budgetLimits: number; failures: number; durationMs: number;
+    completedTurns: Record<string, number>;
+  } = {
+    decisions: 0, nodes: 0, budgetLimits: 0, failures: 0, durationMs: 0,
+    completedTurns: {},
+  };
+  private readonly options: HeuristicOptions;
+  private readonly recentPositions: string[] = [];
 
-  constructor(owner: PieceOwner, name: string | null = null, engine: RulesEngine | null = null) {
+  constructor(
+    owner: PieceOwner, name: string | null = null, engine: RulesEngine | null = null,
+    options: HeuristicOptions = {},
+  ) {
     this.owner = owner;
-    this.name = name ?? "Heuristic";
+    this.difficulty = options.difficulty ?? "medium";
+    this.name = name ?? `Heuristic (${this.difficulty})`;
     this.engine = engine;
+    this.options = options;
   }
 
-  decideReroll(state: GameState): Promise<RerollDecision> {
-    return Promise.resolve(HeuristicPlayerAgent.chooseReroll(this.engine, state));
+  async decideReroll(state: GameState, signal?: AbortSignal): Promise<RerollDecision> {
+    signal?.throwIfAborted();
+    if (!this.engine || this.difficulty === "easy") {
+      return HeuristicPlayerAgent.chooseReroll(this.engine, state);
+    }
+    const result = await this.search(state, {
+      difficulty: this.difficulty, action: "reroll", signal, random: this.options.random,
+      tieSeed: this.options.random?.nextInt(0, 0x7fffffff) ?? 0,
+    });
+    return result?.reroll ?? HeuristicPlayerAgent.chooseReroll(this.engine, state);
   }
 
-  decideMove(state: GameState, legalMoves: readonly Move[]): Promise<Move | null> {
-    return Promise.resolve(HeuristicPlayerAgent.chooseMove(this.engine, state, legalMoves));
+  async decideMove(
+    state: GameState, legalMoves: readonly Move[], signal?: AbortSignal,
+  ): Promise<Move | null> {
+    signal?.throwIfAborted();
+    if (!this.engine || !legalMoves.length) {
+      return HeuristicPlayerAgent.chooseMove(this.engine, state, legalMoves);
+    }
+    const position = armyKey(state);
+    if (this.recentPositions.at(-1) !== position) {
+      this.recentPositions.push(position);
+      if (this.recentPositions.length > 16) this.recentPositions.shift();
+    }
+    const result = await this.search(state, {
+      difficulty: this.difficulty, action: "move", moves: legalMoves, signal,
+      random: this.options.random,
+      tieSeed: this.options.random?.nextInt(0, 0x7fffffff) ?? 0,
+      recentPositions: this.recentPositions,
+    });
+    return result?.move ?? HeuristicPlayerAgent.chooseMove(this.engine, state, legalMoves);
+  }
+
+  private async search(state: GameState, options: SearchOptions): Promise<SearchResult | null> {
+    if (!this.engine) throw new Error("Search requires a rules engine.");
+    const started = performance.now();
+    try {
+      const result = await (this.options.executor ?? searchDecision)(this.engine, state, options);
+      if (options.action === "move" && options.moves?.length &&
+          (!result.move || !this.engine.isLegalMove(state, result.move))) {
+        throw new Error("Search returned an illegal or missing move.");
+      }
+      this.lastSearch = result.diagnostics;
+      this.searchStats.decisions++;
+      this.searchStats.nodes += result.diagnostics.nodes;
+      this.searchStats.budgetLimits += Number(result.diagnostics.budgetExhausted);
+      this.searchStats.durationMs += performance.now() - started;
+      const depth = String(result.diagnostics.completedTurns);
+      this.searchStats.completedTurns[depth] = (this.searchStats.completedTurns[depth] ?? 0) + 1;
+      this.options.onSearch?.(result.diagnostics, performance.now() - started);
+      return result;
+    } catch (error) {
+      if (options.signal?.aborted) throw error;
+      this.searchStats.failures++;
+      const message = `${this.name}: search failed (${error instanceof Error ? error.message : String(error)}); using the emergency heuristic.`;
+      if (this.options.log) this.options.log(message);
+      else console.error(message);
+      this.lastSearch = null;
+      return null;
+    }
   }
 
   /**
@@ -73,7 +144,7 @@ export class HeuristicPlayerAgent implements PlayerAgent {
 
     const owner = state.currentPlayer;
     if (canActivateAPiece(engine, state, owner)) return RerollDecision.KeepDiceAndProceed;
-    if (isQueenThreatened(engine, state, owner)) return RerollDecision.KeepDiceAndProceed;
+    if (countQueenThreats(engine, state, owner) > 0) return RerollDecision.KeepDiceAndProceed;
     return RerollDecision.RerollActiveDie;
   }
 
@@ -111,31 +182,31 @@ function canActivateAPiece(engine: RulesEngine, state: GameState, owner: PieceOw
 }
 
 /**
- * True when any opponent piece could land on the queen with the next throw. The probe runs on a clone,
- * because it has to try every die face on a board that is otherwise untouched.
+ * Counts opponent piece/die-face pairs that can capture the queen in one move. The engine's landing
+ * rules also account for inactive queens being protected until activated.
  */
-function isQueenThreatened(engine: RulesEngine, state: GameState, owner: PieceOwner): boolean {
+function countQueenThreats(engine: RulesEngine, state: GameState, owner: PieceOwner): number {
   const queen = findPiece(state, owner, PieceType.Queen);
-  if (queen == null) return false;
+  if (queen == null) return 0;
 
   const opponent = owner === PieceOwner.P1 ? PieceOwner.P2 : PieceOwner.P1;
   const rules = engine.rules;
+  let threats = 0;
+  const probe = state.clone();
+  probe.currentActiveDie = 0;
   for (const face of rules.dice.faces) {
     if (face.steps === 0) continue;
 
-    const probe = state.clone();
-    if (probe.dice.length === 0) return false;
-    probe.currentActiveDie = 0;
     probe.dice[0] = rules.resolveFace(face.id);
 
     for (const place of probe.places) {
       for (const candidate of place.pieces) {
         if (candidate.owner !== opponent) continue;
-        if (engine.getAllowedPlaces(probe, candidate).includes(queen.placeIndex)) return true;
+        if (engine.getAllowedPlaces(probe, candidate).includes(queen.placeIndex)) threats++;
       }
     }
   }
-  return false;
+  return threats;
 }
 
 function scoreMove(engine: RulesEngine, state: GameState, move: Move): number {
@@ -143,13 +214,14 @@ function scoreMove(engine: RulesEngine, state: GameState, move: Move): number {
   if (piece == null) return Number.NEGATIVE_INFINITY;
 
   const owner = piece.owner;
-  const queenWasThreatened = isQueenThreatened(engine, state, owner);
+  const threatsBefore = countQueenThreats(engine, state, owner);
   const wasInactive = !piece.isActive;
   const sourceArc = piece.arc;
 
   const clone = state.clone();
   const outcome = engine.tryApplyMove(clone, move);
   if (!outcome.success) return Number.NEGATIVE_INFINITY;
+  if (clone.gameOver && clone.winner === owner) return Number.POSITIVE_INFINITY;
 
   let score = 0;
   for (const ruleEvent of outcome.events) {
@@ -170,16 +242,15 @@ function scoreMove(engine: RulesEngine, state: GameState, move: Move): number {
 
   if (wasInactive) score += HeuristicPlayerAgent.ActivatingPieceScore;
 
-  if (wasInactive && piece.type === PieceType.Queen) {
-    score += HeuristicPlayerAgent.ActivatingQueenBonus;
-  }
-
   const moved = engine.findPiece(clone, move.pieceId);
   const advanced = moved == null ? 0 : forwardSteps(engine.trackLength, sourceArc, moved.arc);
   score += advanced * HeuristicPlayerAgent.AdvancePerStepScore;
 
-  if (queenWasThreatened && !isQueenThreatened(engine, clone, owner)) {
-    score += HeuristicPlayerAgent.SavingQueenScore;
+  const threatsAfter = countQueenThreats(engine, clone, owner);
+  score += (threatsBefore - threatsAfter) * HeuristicPlayerAgent.SavingQueenScore;
+  const queen = findPiece(clone, owner, PieceType.Queen);
+  if (queen?.isActive && clone.places[queen.placeIndex].y === engine.homeRowOf(owner)) {
+    score += HeuristicPlayerAgent.QueenHomeRowScore;
   }
   return score;
 }

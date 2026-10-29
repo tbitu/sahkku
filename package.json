@@ -13,7 +13,8 @@
     "test:watch": "vitest",
     "test:e2e": "npm --prefix Tools/PlaywrightTests test",
     "typecheck": "tsc --noEmit",
-    "bench": "tsx src/cli/cli.ts"
+    "bench": "tsx src/cli/cli.ts",
+    "bench:strategy": "node --import tsx Tools/StrategyBench.ts"
   },
   "devDependencies": {
     "@types/node": "^26.6.3",

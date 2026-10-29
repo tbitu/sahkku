@@ -33,6 +33,7 @@ import { HeuristicPlayerAgent } from "../agents/heuristic";
 import { LlmPlayerAgent, type LlmConfig, type LlmTransport } from "../agents/llm";
 import { RandomPlayerAgent } from "../agents/random";
 import type { BotRandomSource, PlayerAgent } from "../agents/types";
+import { difficultyFor, type SearchExecutor } from "../agents/search";
 import type { SoundName, SoundPlayer } from "../audio/audio";
 import { defaultTranslate, type Translator } from "../locale/i18n";
 import {
@@ -69,7 +70,7 @@ export const GameModes = {
 export type GameMode = (typeof GameModes)[keyof typeof GameModes];
 
 /** The bots a seat can be given. `human` is not here: that is what the seat list expresses. */
-export const BotKinds = ["heuristic", "random", "llm"] as const;
+export const BotKinds = ["easy", "medium", "hard", "heuristic", "random", "llm"] as const;
 
 export type BotKind = (typeof BotKinds)[number];
 
@@ -114,7 +115,7 @@ export interface MatchSetup {
 /** The shipped setup: single player against the deterministic bot, even odds, throwing for the start. */
 export const DefaultMatchSetup: MatchSetup = {
   mode: GameModes.humanVsBot,
-  bots: { p1: "heuristic", p2: "heuristic" },
+  bots: { p1: "medium", p2: "medium" },
   speed: "normal",
   variant: "evenOdds",
   startingPlayer: "throw",
@@ -174,6 +175,7 @@ export function botKindFor(setup: MatchSetup, owner: PieceOwner): BotKind {
 }
 
 export interface BotAgentDeps {
+  searchExecutor?: SearchExecutor;
   /** Randomness, used by the random bot's own draws. The engine keeps its own source. */
   random?: BotRandomSource | null;
 
@@ -197,6 +199,10 @@ export function createBotAgent(
   engine: RulesEngine,
   deps: BotAgentDeps = {},
 ): PlayerAgent {
+  const heuristic = new HeuristicPlayerAgent(owner, null, engine, {
+    difficulty: difficultyFor(kind) ?? "medium", random: deps.random,
+    executor: deps.searchExecutor, log: deps.log,
+  });
   switch (kind) {
     case "random":
       return new RandomPlayerAgent(owner, null, deps.random ?? null);
@@ -208,9 +214,10 @@ export function createBotAgent(
         deps.llmConfig ?? null,
         engine,
         deps.log ?? null,
+        heuristic,
       );
     default:
-      return new HeuristicPlayerAgent(owner, null, engine);
+      return heuristic;
   }
 }
 
@@ -866,6 +873,7 @@ export function soundForEvents(events: readonly RuleEvent[]): SoundName | null {
 export interface BotDriverInit {
   /** Pause before an automated seat acts (see {@link BotThinkDelayMs}). */
   thinkDelayMs?: number;
+  onThinkingChange?: (thinking: boolean) => void;
 }
 
 /**
@@ -890,10 +898,10 @@ export class BotDriver {
   private unsubscribe: (() => void) | null = null;
   private abort: AbortController | null = null;
   private busy = false;
+  private readonly onThinkingChange: ((thinking: boolean) => void) | undefined;
 
   /**
-   * Bumped by `stop()`, so a decision that was already in flight when the driver was stopped can
-   * recognise that its answer belongs to a cancelled driver and must be dropped.
+   * Bumped by stopping or replacing agents, so obsolete in-flight decisions are dropped.
    */
   private generation = 0;
 
@@ -901,6 +909,7 @@ export class BotDriver {
     this.controller = controller;
     this.engine = engine;
     this.thinkDelay = Math.max(0, init.thinkDelayMs ?? 0);
+    this.onThinkingChange = init.onThinkingChange;
   }
 
   /** True while the driver follows the controller's state changes. */
@@ -915,6 +924,10 @@ export class BotDriver {
 
   /** Replaces both seats at once — a mode change or a new match — and schedules a step. */
   setAgents(agents: Partial<Record<PieceOwner, PlayerAgent | null>>): void {
+    this.generation++;
+    this.abort?.abort();
+    this.onThinkingChange?.(false);
+    this.abort = new AbortController();
     for (const owner of [PieceOwner.P1, PieceOwner.P2]) {
       const agent = agents[owner] ?? null;
       if (agent == null) this.agents.delete(owner);
@@ -950,11 +963,12 @@ export class BotDriver {
     }
     this.abort?.abort();
     this.abort = null;
+    this.onThinkingChange?.(false);
   }
 
   /**
    * Takes one action for the seat to move, if that seat is automated, and reports whether anything
-   * happened. Never throws: a bot that rejects a decision is treated as passing, so a broken endpoint
+   * happened. Rejected decisions are reported and use an emergency policy, so a broken endpoint
    * cannot freeze the table.
    *
    * Callable without `start()`, which is how the tests play a whole match deterministically instead of
@@ -977,8 +991,13 @@ export class BotDriver {
       if (this.engine.canReroll(state)) {
         let decision = RerollDecision.KeepDiceAndProceed;
         try {
+          this.onThinkingChange?.(true);
           decision = await agent.decideReroll(state, this.abort?.signal);
-        } catch {
+          if (decision !== RerollDecision.KeepDiceAndProceed &&
+              decision !== RerollDecision.RerollActiveDie) throw new Error("Bot returned an invalid reroll decision.");
+        } catch (error) {
+          if (!this.isCurrent(state, generation)) return false;
+          console.error("Bot reroll failed; keeping the dice.", error);
           decision = RerollDecision.KeepDiceAndProceed;
         }
         // The match may have been restarted (or the driver stopped) while the agent was thinking.
@@ -997,17 +1016,22 @@ export class BotDriver {
 
       let move: Move | null = null;
       try {
+        this.onThinkingChange?.(true);
         move = await agent.decideMove(state, legalMoves, this.abort?.signal);
-      } catch {
-        move = null;
+      } catch (error) {
+        if (!this.isCurrent(state, generation)) return false;
+        console.error("Bot move failed; using the emergency heuristic.", error);
+        move = HeuristicPlayerAgent.chooseMove(this.engine, state, legalMoves);
       }
       if (!this.isCurrent(state, generation)) return false;
 
-      // A proposal outside the legal list is dropped rather than applied; the engine is the authority
-      // and the match has to go on, so the first legal move stands in for the bot that misfired.
-      const chosen = move != null && this.engine.isLegalMove(state, move) ? move : legalMoves[0]!;
-      return this.controller.commitMoveAutomated(chosen);
+      if (move == null || !this.engine.isLegalMove(state, move)) {
+        console.error("Bot returned an illegal or missing move; using the emergency heuristic.", move);
+        move = HeuristicPlayerAgent.chooseMove(this.engine, state, legalMoves)!;
+      }
+      return this.controller.commitMoveAutomated(move);
     } finally {
+      if (generation === this.generation) this.onThinkingChange?.(false);
       this.busy = false;
     }
   }

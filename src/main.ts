@@ -25,6 +25,7 @@ import { EngineOptions, PieceOwner, PieceType, RerollDecision, type IRandomSourc
 import { RulesEngine } from "./rules/engine";
 import { loadShippedRuleset } from "./rules/ruleset";
 import { BoardView } from "./ui/board";
+import { browserSearch } from "./agents/browser-search";
 import {
   BotDriver,
   BotKinds,
@@ -188,7 +189,10 @@ export function startSahkkuApp(doc: Document = document): SahkkuApp {
 
   // ------------------------------------------------------------------ the bots
 
-  const botDriver = new BotDriver(controller, engine, { thinkDelayMs: BotThinkDelayMs[setup.speed] });
+  const botDriver = new BotDriver(controller, engine, {
+    thinkDelayMs: BotThinkDelayMs[setup.speed],
+    onThinkingChange: thinking => presenter.setThinking(thinking),
+  });
 
   /**
    * The LLM seat's collaborators, rebuilt from the current settings: a fresh transport for each match,
@@ -207,10 +211,16 @@ export function startSahkkuApp(doc: Document = document): SahkkuApp {
     if (!isBotSeat(setup, owner)) return null;
 
     return createBotAgent(botKindFor(setup, owner), owner, engine, {
+      searchExecutor: browserSearch,
       random,
       transport: llm.transport,
       llmConfig: llm.config,
       log: (message) => {
+        if (/search failed/i.test(message)) {
+          console.error(message);
+          presenter.notice(i18n.t("notifications.searchFallback"));
+          return;
+        }
         if (!settings.settings.notifyOnFallback) return;
         if (!/heuristic/i.test(message)) return;
         presenter.notice(i18n.t("notifications.llmFallback"));
@@ -414,7 +424,8 @@ export function startSahkkuApp(doc: Document = document): SahkkuApp {
 
 /** The two bot seats' option list, shared by both selects. */
 function botOptions(t: Translator): Array<[string, string]> {
-  return BotKinds.map((kind): [string, string] => [kind, t(`menu.bots.${kind}`)]);
+  return BotKinds.filter(kind => kind !== "heuristic")
+    .map((kind): [string, string] => [kind, t(`menu.bots.${kind}`)]);
 }
 
 /** `[value, label]` pairs for a list of locale keys sharing a prefix, e.g. `menu.speeds.slow`. */
@@ -486,6 +497,10 @@ class MatchPresenter {
   private noticeText: string | null = null;
   private noticeTimer: number | null = null;
   private lastView: MatchViewModel | null = null;
+  private readonly statusLabel: HTMLElement;
+  private readonly elapsedLabel: HTMLElement;
+  private thinkingStarted: number | null = null;
+  private thinkingTimer: number | null = null;
 
   constructor(
     doc: Document,
@@ -501,6 +516,36 @@ class MatchPresenter {
     this.statusBar = statusBar;
     this.controller = controller;
     this.translate = translate;
+    this.statusLabel = doc.createElement("span");
+    this.elapsedLabel = doc.createElement("span");
+    this.elapsedLabel.className = "thinking-elapsed";
+    this.elapsedLabel.setAttribute("aria-live", "off");
+    this.elapsedLabel.hidden = true;
+    statusBar.replaceChildren(this.statusLabel, this.elapsedLabel);
+  }
+
+  setThinking(thinking: boolean): void {
+    const win = this.doc.defaultView;
+    if (thinking && win != null && this.thinkingStarted == null) {
+      this.thinkingStarted = win.performance.now();
+      this.statusBar.dataset["thinking"] = "true";
+      this.thinkingTimer = win.setInterval(() => this.updateElapsed(), 1000);
+    } else if (!thinking) {
+      if (this.thinkingTimer != null) win?.clearInterval(this.thinkingTimer);
+      this.thinkingTimer = null;
+      this.thinkingStarted = null;
+      delete this.statusBar.dataset["thinking"];
+      this.elapsedLabel.hidden = true;
+      this.elapsedLabel.textContent = "";
+    }
+  }
+
+  private updateElapsed(): void {
+    const win = this.doc.defaultView;
+    if (this.thinkingStarted == null || win == null) return;
+    const seconds = Math.floor((win.performance.now() - this.thinkingStarted) / 1000);
+    this.elapsedLabel.hidden = seconds < 10;
+    if (seconds >= 10) this.elapsedLabel.textContent = this.translate("status.thinkingElapsed", { seconds });
   }
 
   /** Re-letters the chrome and repaints the cards that are already on screen. */
@@ -533,7 +578,8 @@ class MatchPresenter {
 
   update(view: MatchViewModel): void {
     this.lastView = view;
-    this.statusBar.textContent = view.statusText;
+    this.statusLabel.textContent = view.statusText;
+    this.updateElapsed();
     this.statusBar.dataset["phase"] = view.phase;
     this.statusBar.dataset["turn"] = view.humanTurn ? "human" : "bot";
     this.showBanner(view.eventMessages);

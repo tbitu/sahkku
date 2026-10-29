@@ -23,7 +23,7 @@ import {
   type GameState,
 } from "../../src/rules/domain";
 import type { RulesEngine } from "../../src/rules/engine";
-import { HeuristicPlayerAgent } from "../../src/agents/heuristic";
+import { LegacyHeuristicAgent as HeuristicPlayerAgent } from "../helpers/legacy-agent";
 import { LlmConfig, LlmPlayerAgent, type LlmTransport } from "../../src/agents/llm";
 import { RandomPlayerAgent } from "../../src/agents/random";
 import type { PlayerAgent } from "../../src/agents/types";
@@ -219,18 +219,23 @@ describe("BenchmarkTests", () => {
     const engine = testEngine();
     const cfg = config(99, 200, 50);
 
+    const slow = new SlowAgent(PieceOwner.P1);
+    const cancellation = new AbortController();
     const match = runner(
       engine,
-      new SlowAgent(PieceOwner.P1),
+      slow,
       new HeuristicPlayerAgent(PieceOwner.P2, "Heuristic", engine),
     );
 
-    const result = await match.runMatch(0, cfg);
+    const result = await match.runMatch(0, cfg, cancellation.signal);
 
     expect(result.ruleViolationOccurred, "a slow agent breaks the deadline, not the rules").toBe(false);
     expect(result.errorMessage).not.toBeNull();
     expect(result.errorMessage).toContain("AgentTimeoutError");
     expect(result.winner).toBe(PieceOwner.None);
+    expect(slow.signal?.aborted).toBe(true);
+    expect(slow.signal?.reason).toHaveProperty("name", "AgentTimeoutError");
+    expect(cancellation.signal.aborted).toBe(false);
 
     const summary = new BenchmarkSummary();
     summary.add(result);
@@ -498,7 +503,7 @@ describe("CliTests", () => {
       "--games",
       "2",
       "--p1",
-      "heuristic",
+      "easy",
       "--p2",
       "random",
       "--seed",
@@ -513,7 +518,7 @@ describe("CliTests", () => {
     expect(summary.totalGames).toBe(2);
     expect(summary.ruleViolations).toBe(0);
     expect(summary.failures).toBe(0);
-    expect(summary.p1).toBe("Heuristic");
+    expect(summary.p1).toBe("Heuristic (easy)");
     expect(summary.p2).toBe("Random");
     expect(Number(summary.totalHalfMoves)).toBeGreaterThan(0);
   });
@@ -529,7 +534,7 @@ describe("CliTests", () => {
       "--p1",
       "human",
       "--p2",
-      "heuristic",
+      "easy",
       "--seed",
       "3",
       "--max-turns",
@@ -538,7 +543,7 @@ describe("CliTests", () => {
 
     expect(exitCode).toBe(0);
     const table = captured.lines.join("\n");
-    expect(table).toContain("Sáhkku benchmark: Human (P1) vs Heuristic (P2)");
+    expect(table).toContain("Sáhkku benchmark: Human (P1) vs Heuristic (easy) (P2)");
     expect(table).toContain("rule violations");
   });
 
@@ -643,19 +648,26 @@ class IllegalMoveAgent implements PlayerAgent {
 class SlowAgent implements PlayerAgent {
   readonly owner: PieceOwner;
   readonly name = "Slow";
+  signal: AbortSignal | undefined;
 
   constructor(owner: PieceOwner) {
     this.owner = owner;
   }
 
-  async decideReroll(): Promise<RerollDecision> {
-    await sleep(300);
-    return RerollDecision.KeepDiceAndProceed;
+  decideReroll(_state: GameState, signal?: AbortSignal): Promise<RerollDecision> {
+    return this.waitForCancellation(signal);
   }
 
-  async decideMove(_state: GameState, legalMoves: readonly Move[]): Promise<Move | null> {
-    await sleep(300);
-    return legalMoves.length === 0 ? null : legalMoves[0];
+  decideMove(_state: GameState, _legalMoves: readonly Move[], signal?: AbortSignal): Promise<Move | null> {
+    return this.waitForCancellation(signal);
+  }
+
+  private waitForCancellation(signal?: AbortSignal): Promise<never> {
+    if (!signal) throw new Error("The runner must supply a decision abort signal.");
+    this.signal = signal;
+    return new Promise((_, reject) => {
+      signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+    });
   }
 }
 

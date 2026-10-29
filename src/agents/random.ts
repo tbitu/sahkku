@@ -9,8 +9,8 @@
  * which kept it from ever spending a sáhkku on activating a queued piece, so most matches against it
  * ground out the whole turn limit into a draw (the mechanism is in the task's problem summary).
  *
- * When available, the random agent now slightly prefers moving the queen, since it is the only
- * piece that can achieve an immediate win by landing on the opponent's queen.
+ * When available, the random agent biases selection towards the queen's greater mobility. Unlike the
+ * heuristic agent, this baseline does not evaluate whether a move exposes its queen to capture.
  */
 
 import { Move, PieceType, RerollDecision, type GameState, type PieceOwner } from "../rules/domain";

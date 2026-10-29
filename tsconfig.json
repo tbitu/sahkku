@@ -16,5 +16,5 @@
     "skipLibCheck": true,
     "noEmit": true
   },
-  "include": ["src/**/*.ts", "tests/**/*.ts", "vitest.config.ts", "vite.config.ts"]
+  "include": ["src/**/*.ts", "tests/**/*.ts", "Tools/StrategyBench.ts", "vitest.config.ts", "vite.config.ts"]
 }

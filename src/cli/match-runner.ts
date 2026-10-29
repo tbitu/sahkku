@@ -296,7 +296,7 @@ export class MatchRunner {
       const agent = this.agentFor(state.currentPlayer);
       const decision = await withDeadline(
         config,
-        agent.decideReroll(state, signal),
+        decisionSignal => agent.decideReroll(state, decisionSignal),
         signal,
       );
 
@@ -333,7 +333,7 @@ export class MatchRunner {
       const agent = this.agentFor(state.currentPlayer);
       const move: Move | null = await withDeadline(
         config,
-        agent.decideMove(state, legalMoves, signal),
+        decisionSignal => agent.decideMove(state, legalMoves, decisionSignal),
         signal,
       );
 
@@ -362,32 +362,36 @@ export class MatchRunner {
 }
 
 /**
- * Bounds one agent decision by `MatchConfig.turnTimeoutMs`. The deadline is applied to the promise the
- * agent returned, never by cancelling a shared signal, so a slow decision cannot cancel the rest of the
- * run and is reported as this game's failure instead.
+ * Gives each decision an isolated abort signal. A timeout stops search/fallback work without
+ * cancelling the whole run, and is reported as this game's failure.
  */
-function withDeadline<T>(config: MatchConfig, decision: Promise<T>, signal?: AbortSignal): Promise<T> {
-  if (config.turnTimeoutMs <= 0) return decision;
-
+function withDeadline<T>(
+  config: MatchConfig, decide: (signal: AbortSignal) => Promise<T>, signal?: AbortSignal,
+): Promise<T> {
   return new Promise<T>((resolveDecision, rejectDecision) => {
-    const timer = setTimeout(() => {
-      rejectDecision(new AgentTimeoutError(`the agent did not decide within ${config.turnTimeoutMs}ms.`));
-    }, config.turnTimeoutMs);
+    const controller = new AbortController();
+    const timer = config.turnTimeoutMs > 0 ? setTimeout(() => {
+      const error = new AgentTimeoutError(`the agent did not decide within ${config.turnTimeoutMs}ms.`);
+      controller.abort(error);
+      settle();
+      rejectDecision(error);
+    }, config.turnTimeoutMs) : undefined;
 
     const onAbort = (): void => {
-      clearTimeout(timer);
+      controller.abort(signal?.reason);
+      settle();
       rejectDecision(signal?.reason ?? new Error("The match was cancelled."));
     };
-    if (signal != null) {
-      if (signal.aborted) onAbort();
-      else signal.addEventListener("abort", onAbort, { once: true });
-    }
-
     const settle = (): void => {
       clearTimeout(timer);
       signal?.removeEventListener("abort", onAbort);
     };
-    decision.then(
+    if (signal?.aborted) {
+      onAbort();
+      return;
+    }
+    signal?.addEventListener("abort", onAbort, { once: true });
+    Promise.resolve().then(() => decide(controller.signal)).then(
       (value) => {
         settle();
         resolveDecision(value);

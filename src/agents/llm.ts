@@ -420,6 +420,7 @@ export class LlmPlayerAgent implements PlayerAgent {
   private readonly config: LlmConfig;
   private readonly engine: RulesEngine | null;
   private readonly log: ((message: string) => void) | null;
+  private readonly fallback: PlayerAgent;
 
   /**
    * @param engine The authority the fallback and the re-roll question consult. May be null only for tests.
@@ -432,6 +433,7 @@ export class LlmPlayerAgent implements PlayerAgent {
     config: LlmConfig | null = null,
     engine: RulesEngine | null = null,
     log: ((message: string) => void) | null = null,
+    fallback?: PlayerAgent,
   ) {
     this.owner = owner;
     this.name = name ?? "LLM NPC";
@@ -439,6 +441,7 @@ export class LlmPlayerAgent implements PlayerAgent {
     this.config = config ?? new LlmConfig();
     this.engine = engine;
     this.log = log;
+    this.fallback = fallback ?? new HeuristicPlayerAgent(owner, null, engine);
   }
 
   async decideReroll(state: GameState, signal?: AbortSignal): Promise<RerollDecision> {
@@ -449,7 +452,7 @@ export class LlmPlayerAgent implements PlayerAgent {
 
     if (this.transport == null) {
       this.writeLog("no endpoint is configured; deciding heuristically.");
-      return HeuristicPlayerAgent.chooseReroll(this.engine, state);
+      return this.fallback.decideReroll(state, signal);
     }
 
     try {
@@ -484,7 +487,7 @@ export class LlmPlayerAgent implements PlayerAgent {
       this.writeLog(`the reroll request failed (${errorMessage(error)}); deciding heuristically.`);
     }
 
-    return HeuristicPlayerAgent.chooseReroll(this.engine, state);
+    return this.fallback.decideReroll(state, signal);
   }
 
   async decideMove(
@@ -499,7 +502,7 @@ export class LlmPlayerAgent implements PlayerAgent {
 
     if (this.transport == null) {
       this.writeLog("no endpoint is configured; playing the heuristic choice.");
-      return HeuristicPlayerAgent.chooseMove(this.engine, state, legalMoves);
+      return this.fallback.decideMove(state, legalMoves, signal);
     }
 
     try {
@@ -530,7 +533,7 @@ export class LlmPlayerAgent implements PlayerAgent {
       this.writeLog(`the move request failed (${errorMessage(error)}); playing the heuristic choice.`);
     }
 
-    return HeuristicPlayerAgent.chooseMove(this.engine, state, legalMoves);
+    return this.fallback.decideMove(state, legalMoves, signal);
   }
 
   /**

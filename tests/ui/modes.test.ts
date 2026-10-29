@@ -12,7 +12,7 @@
  *    the most decisive of the action.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { HeuristicPlayerAgent } from "../../src/agents/heuristic";
 import { LlmPlayerAgent } from "../../src/agents/llm";
@@ -26,6 +26,7 @@ import {
   Move,
   PieceOwner,
   PieceType,
+  RerollDecision,
   RuleEvent,
   RuleEventKind,
   TurnPhase,
@@ -134,7 +135,7 @@ describe("match setup: what a mode implies", () => {
     expect(createBotAgent("random", PieceOwner.P2, engine)).toBeInstanceOf(RandomPlayerAgent);
     expect(createBotAgent("llm", PieceOwner.P2, engine)).toBeInstanceOf(LlmPlayerAgent);
     expect(createBotAgent("heuristic", PieceOwner.P2, engine).owner).toBe(PieceOwner.P2);
-    expect(createBotAgent("heuristic", PieceOwner.P2, engine).name).toBe("Heuristic");
+    expect(createBotAgent("heuristic", PieceOwner.P2, engine).name).toBe("Heuristic (medium)");
 
     // An unknown kind degrades to the heuristic instead of leaving the seat empty.
     expect(createBotAgent("nonsense" as never, PieceOwner.P1, engine)).toBeInstanceOf(
@@ -263,8 +264,8 @@ describe("BotDriver: the automated seats", () => {
     const driver = new BotDriver(controller, engine, { thinkDelayMs: 0 });
 
     driver.setAgents({
-      [PieceOwner.P1]: createBotAgent("heuristic", PieceOwner.P1, engine),
-      [PieceOwner.P2]: createBotAgent("heuristic", PieceOwner.P2, engine),
+      [PieceOwner.P1]: createBotAgent("easy", PieceOwner.P1, engine),
+      [PieceOwner.P2]: createBotAgent("easy", PieceOwner.P2, engine),
     });
 
     const turns: PieceOwner[] = [];
@@ -300,8 +301,8 @@ describe("BotDriver: the automated seats", () => {
     const driver = new BotDriver(controller, engine, { thinkDelayMs: 0 });
 
     driver.setAgents({
-      [PieceOwner.P1]: createBotAgent("heuristic", PieceOwner.P1, engine),
-      [PieceOwner.P2]: createBotAgent("heuristic", PieceOwner.P2, engine),
+      [PieceOwner.P1]: createBotAgent("easy", PieceOwner.P1, engine),
+      [PieceOwner.P2]: createBotAgent("easy", PieceOwner.P2, engine),
     });
 
     expect(driver.running).toBe(false);
@@ -321,6 +322,7 @@ describe("BotDriver: the automated seats", () => {
   }, 30000);
 
   it("survives an agent that rejects every decision", async () => {
+    const reported = vi.spyOn(console, "error").mockImplementation(() => {});
     const engine = testEngine();
     const setup = setupFor(GameModes.botVsBot);
     const controller = controllerFor(engine, new SeededRandomSource(17), setup);
@@ -335,11 +337,11 @@ describe("BotDriver: the automated seats", () => {
     driver.setAgents({
       [PieceOwner.P1]: refusing,
       // The other seat plays normally, so the match still has to reach its end.
-      [PieceOwner.P2]: createBotAgent("heuristic", PieceOwner.P2, engine),
+      [PieceOwner.P2]: createBotAgent("easy", PieceOwner.P2, engine),
     });
 
     // The bot throws, then asks for a move and is rejected: the driver never rejects, it plays the
-    // engine's first legal move instead of freezing the table.
+    // emergency heuristic instead of freezing the table.
     expect(await driver.step()).toBe(true);
     expect(controller.state.isRollPhase).toBe(false);
 
@@ -350,6 +352,77 @@ describe("BotDriver: the automated seats", () => {
     }
     expect(controller.state.gameOver).toBe(true);
     expect(engine.validateState(controller.state)).toEqual([]);
+    expect(reported).toHaveBeenCalled();
+    reported.mockRestore();
+  });
+
+  it("aborts replaced agents and discards their late decisions", async () => {
+    const engine = testEngine();
+    const board = new Board(engine);
+    board.add(5, PieceType.Soldier, PieceOwner.P1, true);
+    board.add(40, PieceType.Soldier, PieceOwner.P2, true);
+    board.state.p1Captures = engine.rules.board.width - 1;
+    board.state.p2Captures = engine.rules.board.width - 1;
+    board.setDice(DieFace.Three);
+    board.phase(TurnPhase.P1move);
+    const controller = new WebMatchController(
+      engine, new SeededRandomSource(1), new EngineOptions(PieceOwner.P1, true),
+      board.state, { humanPlayers: [] },
+    );
+    const thinking: boolean[] = [];
+    const driver = new BotDriver(controller, engine, {
+      thinkDelayMs: 0, onThinkingChange: active => thinking.push(active),
+    });
+    const old = createBotAgent("easy", PieceOwner.P1, engine);
+    let finish!: (move: Move) => void;
+    const delayed = new Promise<Move>(resolve => { finish = resolve; });
+    let signal: AbortSignal | undefined;
+    old.decideMove = (_state, _moves, cancellation) => {
+      signal = cancellation;
+      return delayed;
+    };
+    driver.setAgents({ [PieceOwner.P1]: old });
+    const before = controller.state.clone();
+    const pending = driver.step();
+    expect(thinking.at(-1)).toBe(true);
+    driver.setAgents({ [PieceOwner.P1]: createBotAgent("easy", PieceOwner.P1, engine) });
+    expect(thinking.at(-1)).toBe(false);
+    expect(signal?.aborted).toBe(true);
+    finish(engine.legalMoves(before)[0]);
+    expect(await pending).toBe(false);
+    expect(controller.state).toEqual(before);
+    expect(await driver.step()).toBe(true);
+    expect(thinking.slice(-2)).toEqual([true, false]);
+    expect(engine.validateState(controller.state)).toEqual([]);
+  });
+
+  it("reports actual reroll thinking and clears it when stopped", async () => {
+    const engine = testEngine();
+    const board = new Board(engine);
+    board.add(5, PieceType.Soldier, PieceOwner.P1, true);
+    board.add(40, PieceType.Soldier, PieceOwner.P2, true);
+    board.setDice(DieFace.Sahhku);
+    board.phase(TurnPhase.P1move);
+    const controller = new WebMatchController(
+      engine, new SeededRandomSource(1), new EngineOptions(PieceOwner.P1, true),
+      board.state, { humanPlayers: [] },
+    );
+    const thinking: boolean[] = [];
+    const driver = new BotDriver(controller, engine, {
+      thinkDelayMs: 0, onThinkingChange: active => thinking.push(active),
+    });
+    const agent = createBotAgent("easy", PieceOwner.P1, engine);
+    let finish!: (decision: RerollDecision) => void;
+    agent.decideReroll = () => new Promise(resolve => { finish = resolve; });
+    driver.setAgents({ [PieceOwner.P1]: agent });
+    const before = controller.state.clone();
+    const pending = driver.step();
+    expect(thinking.at(-1)).toBe(true);
+    driver.stop();
+    expect(thinking.at(-1)).toBe(false);
+    finish(RerollDecision.KeepDiceAndProceed);
+    expect(await pending).toBe(false);
+    expect(controller.state).toEqual(before);
   });
 });
 
