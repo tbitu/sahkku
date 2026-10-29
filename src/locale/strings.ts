@@ -84,6 +84,7 @@ const englishStrings = {
       llm: "LLM agent (OpenAI-compatible)",
     },
     speeds: {
+      kajsa: "Kajsa mode",
       slow: "Slow",
       normal: "Normal",
       fast: "Fast",
@@ -310,6 +311,7 @@ const northSamiStrings: StringTable = {
       llm: "LLM-agentta (OpenAI-heivvolaš)",
     },
     speeds: {
+      kajsa: "Kajsa mode",
       slow: "Njozet",
       normal: "Dábálaš",
       fast: "Fáhkka",
@@ -524,6 +526,7 @@ const norwegianStrings: StringTable = {
       llm: "LLM-agent (OpenAI-kompatibel)",
     },
     speeds: {
+      kajsa: "Kajsa mode",
       slow: "Treg",
       normal: "Normal",
       fast: "Rask",
