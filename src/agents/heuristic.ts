@@ -33,6 +33,9 @@ export class HeuristicPlayerAgent implements PlayerAgent {
   /** Getting the queen out of immediate danger. */
   static readonly SavingQueenScore = 5000;
 
+  /** Bonus for activating the queen specifically: it's the game-winning piece. */
+  static readonly ActivatingQueenBonus = 100;
+
   static readonly CapturingSoldierScore = 500;
   static readonly RecruitingKingScore = 400;
   static readonly ActivatingPieceScore = 300;
@@ -166,6 +169,10 @@ function scoreMove(engine: RulesEngine, state: GameState, move: Move): number {
   }
 
   if (wasInactive) score += HeuristicPlayerAgent.ActivatingPieceScore;
+
+  if (wasInactive && piece.type === PieceType.Queen) {
+    score += HeuristicPlayerAgent.ActivatingQueenBonus;
+  }
 
   const moved = engine.findPiece(clone, move.pieceId);
   const advanced = moved == null ? 0 : forwardSteps(engine.trackLength, sourceArc, moved.arc);

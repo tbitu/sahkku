@@ -8,9 +8,12 @@
  * fair coin flip drawn from that same stream: the shipped CPU re-threw every sáhkku unconditionally,
  * which kept it from ever spending a sáhkku on activating a queued piece, so most matches against it
  * ground out the whole turn limit into a draw (the mechanism is in the task's problem summary).
+ *
+ * When available, the random agent now slightly prefers moving the queen, since it is the only
+ * piece that can achieve an immediate win by landing on the opponent's queen.
  */
 
-import { Move, RerollDecision, type GameState, type PieceOwner } from "../rules/domain";
+import { Move, PieceType, RerollDecision, type GameState, type PieceOwner } from "../rules/domain";
 import type { BotRandomSource, PlayerAgent } from "./types";
 
 export class RandomPlayerAgent implements PlayerAgent {
@@ -44,7 +47,7 @@ export class RandomPlayerAgent implements PlayerAgent {
     );
   }
 
-  decideMove(_state: GameState, legalMoves: readonly Move[]): Promise<Move | null> {
+  decideMove(state: GameState, legalMoves: readonly Move[]): Promise<Move | null> {
     if (legalMoves.length === 0) return Promise.resolve(null);
     if (this.random == null) return Promise.resolve(legalMoves[0]);
 
@@ -53,7 +56,17 @@ export class RandomPlayerAgent implements PlayerAgent {
       if (!pieceIds.includes(move.pieceId)) pieceIds.push(move.pieceId);
     }
 
-    const pieceId = pieceIds[clamp(this.random.nextInt(0, pieceIds.length), 0, pieceIds.length - 1)];
+    let pieceId: number;
+
+    // Check if the queen is a legal move option; prefer it with 70% probability (vs random pick).
+    const queenId = findQueenId(state, this.owner);
+    const shouldPreferQueen = queenId != null && pieceIds.includes(queenId) && this.random.nextInt(0, 10) < 7;
+
+    if (shouldPreferQueen) {
+      pieceId = queenId!;
+    } else {
+      pieceId = pieceIds[clamp(this.random.nextInt(0, pieceIds.length), 0, pieceIds.length - 1)];
+    }
 
     const targets: number[] = [];
     for (const move of legalMoves) {
@@ -70,4 +83,15 @@ function clamp(value: number, minimum: number, maximum: number): number {
   if (value < minimum) return minimum;
   if (value > maximum) return maximum;
   return value;
+}
+
+function findQueenId(state: GameState, owner: PieceOwner): number | null {
+  for (const place of state.places) {
+    for (const piece of place.pieces) {
+      if (piece.owner === owner && piece.type === PieceType.Queen) {
+        return piece.id;
+      }
+    }
+  }
+  return null;
 }
