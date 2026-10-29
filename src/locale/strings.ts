@@ -62,7 +62,7 @@ const englishStrings = {
       "Sáhkku is a traditional game of the Sámi people. Rules engine, agents and this 2D client are open source.",
   },
   menu: {
-    start: "New game",
+    start: "Start game",
     language: "Language",
     settings: "Settings",
     help: "Rules & help",
@@ -119,6 +119,7 @@ const englishStrings = {
     describe: "{piece} ({state})",
   },
   status: {
+    setup: "Choose your match setup, then press Start game.",
     rollPrompt: "{player}: roll the dice.",
     rerollPrompt:
       "{player}: {faces} is showing — reroll that die, or keep the dice and move.",
@@ -294,7 +295,7 @@ const northSamiStrings: StringTable = {
       "Sáhkku lea sámi álbmoga árbevirolaš speallu. Njuolggadusmotora, agenttat ja dán 2D-klienta leat rabas gáldokoda.",
   },
   menu: {
-    start: "Ođđa speallu",
+    start: "Álggat spealu",
     language: "Giella",
     settings: "Asahusat",
     help: "Njuolggadusat ja veahkki",
@@ -351,6 +352,7 @@ const northSamiStrings: StringTable = {
     describe: "{piece} ({state})",
   },
   status: {
+    setup: "Vállje spillaheivehusaid ja de Álggat spealu.",
     rollPrompt: "{player}: bálkke birccuid.",
     rerollPrompt:
       "{player}: {faces} čájeha — bálkke dan birccu ođđasit, dahje doala birccuid ja sirdde.",
@@ -514,7 +516,7 @@ const norwegianStrings: StringTable = {
       "Sáhkku er et tradisjonelt spill for det samiske folket. Regelmotoren, agentene og denne 2D-klienten er åpen kildekode.",
   },
   menu: {
-    start: "Nytt spill",
+    start: "Start spill",
     language: "Språk",
     settings: "Innstillinger",
     help: "Regler og hjelp",
@@ -571,6 +573,7 @@ const norwegianStrings: StringTable = {
     describe: "{piece} ({state})",
   },
   status: {
+    setup: "Velg spilloppsett, og trykk Start spill.",
     rollPrompt: "{player}: kast terningene.",
     rerollPrompt:
       "{player}: {faces} viser — kast den terningen på nytt, eller behold og flytt.",

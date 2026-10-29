@@ -303,7 +303,7 @@ export interface MatchViewModel {
   turnPhase: TurnPhase;
   currentPlayer: PieceOwner;
   currentPlayerLabel: string;
-  phase: "roll" | "move" | "gameover";
+  phase: "setup" | "roll" | "move" | "gameover";
   statusText: string;
 
   /**
@@ -333,6 +333,9 @@ export type MatchListener = (view: MatchViewModel) => void;
 
 /** The collaborators the presentation layer injects, all optional and all replaceable at runtime. */
 export interface MatchControllerInit {
+  /** False for a board preview that must wait for an explicit start. */
+  started?: boolean;
+
   /**
    * The owners a local human plays. Everything else is an automated seat the {@link BotDriver} owns.
    * Defaults to both, i.e. a hotseat table, which is what the headless tests want.
@@ -359,6 +362,7 @@ export class WebMatchController {
   private readonly sounds: SoundPlayer | null;
   private translator: Translator;
   private humanPlayers: Set<PieceOwner>;
+  private started: boolean;
 
   /**
    * @param state An already-built state to sit on. Omitted by the browser client, which lets the
@@ -375,6 +379,7 @@ export class WebMatchController {
     this.engine = engine;
     this.random = random;
     this.options = options;
+    this.started = init.started ?? true;
     this.game = state ?? engine.initGame(options, random);
     this.sounds = init.sounds ?? null;
     this.translator = init.translate ?? defaultTranslate;
@@ -391,7 +396,7 @@ export class WebMatchController {
 
   /** The Roll Dice button is live. */
   get canRoll(): boolean {
-    return !this.game.gameOver && this.game.isRollPhase;
+    return this.started && !this.game.gameOver && this.game.isRollPhase;
   }
 
   /** The owners a local human plays on this device. */
@@ -406,7 +411,7 @@ export class WebMatchController {
 
   /** True when the human actions below will be accepted right now. */
   get canHumanAct(): boolean {
-    return !this.game.gameOver && this.humanPlayers.has(this.game.currentPlayer);
+    return this.accepts(true);
   }
 
   get selectedPieceId(): number | null {
@@ -584,6 +589,7 @@ export class WebMatchController {
   restart(options?: EngineOptions): void {
     if (options != null) this.options = options;
     this.game = this.engine.initGame(this.options, this.random);
+    this.started = true;
     this.selected = null;
     this.lastEvents = [];
     this.publish();
@@ -593,7 +599,7 @@ export class WebMatchController {
 
   /** True when an action from this kind of seat is allowed in the current state. */
   private accepts(human: boolean): boolean {
-    if (this.game.gameOver) return false;
+    if (!this.started || this.game.gameOver) return false;
     return this.humanPlayers.has(this.game.currentPlayer) === human;
   }
 
@@ -695,7 +701,7 @@ export class WebMatchController {
     const current = state.currentPlayer;
 
     // A bot's turn is not the human's to play: no piece is offered and no button is live.
-    const humanTurn = !state.gameOver && this.humanPlayers.has(current);
+    const humanTurn = this.canHumanAct;
 
     const cells: CellView[] = state.places.map((place, index) => ({
       placeIndex: index,
@@ -736,7 +742,7 @@ export class WebMatchController {
       turnPhase: state.turnPhase,
       currentPlayer: current,
       currentPlayerLabel: t(ownerNameKey(current)),
-      phase: state.gameOver ? "gameover" : state.isRollPhase ? "roll" : "move",
+      phase: !this.started ? "setup" : state.gameOver ? "gameover" : state.isRollPhase ? "roll" : "move",
       statusText: this.statusText(state, selected),
       humanTurn,
       dice: {
@@ -769,6 +775,7 @@ export class WebMatchController {
 
   private statusText(state: GameState, selected: { type: PieceType; owner: PieceOwner } | null): string {
     const t = this.translator;
+    if (!this.started) return t("status.setup");
 
     if (state.gameOver) {
       return t("status.gameOver", {

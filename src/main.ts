@@ -12,9 +12,7 @@
  * - **the preferences** — a `SettingsStore` behind the LLM endpoint/model/timeout fields and the two
  *   volume sliders, read back on the next start so the NPC seat is configured the way the player left it.
  *
- * The match starts from the shipped ruleset's even-odds setup (three soldiers already loose on each
- * side) with the engine throwing for the starting player, which is the setup the game is normally
- * played from.
+ * The board opens as a preview. Only Start game deals a match and throws for the starting player.
  */
 
 import { FetchLlmTransport, type LlmConfig, type LlmTransport } from "./agents/llm";
@@ -110,7 +108,7 @@ export interface SahkkuApp {
   startMatch(setup?: Partial<MatchSetup>): void;
 }
 
-/** Builds the whole client against an existing document and starts a local match. */
+/** Builds the whole client against an existing document, ready for match setup. */
 export function startSahkkuApp(doc: Document = document): SahkkuApp {
   const byId = (id: string): HTMLElement => {
     const element = doc.getElementById(id);
@@ -147,7 +145,10 @@ export function startSahkkuApp(doc: Document = document): SahkkuApp {
 
   let setup: MatchSetup = { ...DefaultMatchSetup };
 
-  const controller = new WebMatchController(engine, random, engineOptionsFor(setup), undefined, {
+  const controller = new WebMatchController(engine, random, engineOptionsFor({
+    ...setup, startingPlayer: "P1",
+  }), undefined, {
+    started: false,
     humanPlayers: humanSeatsFor(setup),
     sounds: audio,
     translate: i18n.t,
@@ -163,7 +164,7 @@ export function startSahkkuApp(doc: Document = document): SahkkuApp {
   const modalRoot = byId("modal-root");
   const dialogRoot = byId("dialog-root");
 
-  const presenter = new MatchPresenter(doc, banner, modalRoot, statusBar, controller, i18n.t);
+  const presenter = new MatchPresenter(doc, banner, modalRoot, statusBar, i18n.t);
 
   const render = (view: MatchViewModel): void => {
     board.render(view, {
@@ -230,6 +231,7 @@ export function startSahkkuApp(doc: Document = document): SahkkuApp {
 
   const startMatch = (next: Partial<MatchSetup> = {}): void => {
     setup = { ...setup, ...next, bots: { ...setup.bots, ...(next.bots ?? {}) } };
+    botDriver.stop();
 
     // The seats are changed before the new game is dealt, so the very first repaint of the fresh match
     // (and any step the driver schedules from it) already belongs to the agents this setup names.
@@ -243,6 +245,7 @@ export function startSahkkuApp(doc: Document = document): SahkkuApp {
     controller.restart(engineOptionsFor(setup));
     controller.setHumanPlayers(humanSeatsFor(setup));
     syncToolbar();
+    botDriver.start();
   };
 
   // ------------------------------------------------------------------ toolbar and dialogs
@@ -315,13 +318,14 @@ export function startSahkkuApp(doc: Document = document): SahkkuApp {
 
   modeSelect.addEventListener("change", () => {
     const mode: GameMode = isGameMode(modeSelect.value) ? modeSelect.value : setup.mode;
-    startMatch({ mode });
+    setup = { ...setup, mode };
+    syncToolbar();
   });
   bot1Select.addEventListener("change", () => {
-    startMatch({ bots: { ...setup.bots, p1: readBotKind(bot1Select.value, setup.bots.p1) } });
+    setup = { ...setup, bots: { ...setup.bots, p1: readBotKind(bot1Select.value, setup.bots.p1) } };
   });
   bot2Select.addEventListener("change", () => {
-    startMatch({ bots: { ...setup.bots, p2: readBotKind(bot2Select.value, setup.bots.p2) } });
+    setup = { ...setup, bots: { ...setup.bots, p2: readBotKind(bot2Select.value, setup.bots.p2) } };
   });
   speedSelect.addEventListener("change", () => {
     setup = { ...setup, speed: isBotSpeed(speedSelect.value) ? speedSelect.value : setup.speed };
@@ -332,13 +336,13 @@ export function startSahkkuApp(doc: Document = document): SahkkuApp {
     const variant: VariantChoice = isVariantChoice(variantSelect.value)
       ? variantSelect.value
       : setup.variant;
-    startMatch({ variant });
+    setup = { ...setup, variant };
   });
   starterSelect.addEventListener("change", () => {
     const startingPlayer: StartingPlayerChoice = isStartingPlayerChoice(starterSelect.value)
       ? starterSelect.value
       : setup.startingPlayer;
-    startMatch({ startingPlayer });
+    setup = { ...setup, startingPlayer };
   });
   localeSelect.addEventListener("change", () => {
     i18n.setLocale(localeSelect.value);
@@ -403,8 +407,7 @@ export function startSahkkuApp(doc: Document = document): SahkkuApp {
   });
 
   applyLocale(i18n.locale);
-  startMatch();
-  botDriver.start();
+  syncToolbar();
   render(controller.viewModel);
 
   return {
@@ -488,12 +491,12 @@ class MatchPresenter {
   private readonly statusBar: HTMLElement;
   private readonly banner: HTMLElement;
   private readonly modalRoot: HTMLElement;
-  private readonly controller: WebMatchController;
 
   private translate: Translator;
   private bannerSignature = "";
   private bannerTimer: number | null = null;
   private modalSignature = "";
+  private gameOverDismissed = false;
   private noticeText: string | null = null;
   private noticeTimer: number | null = null;
   private lastView: MatchViewModel | null = null;
@@ -507,14 +510,12 @@ class MatchPresenter {
     banner: HTMLElement,
     modalRoot: HTMLElement,
     statusBar: HTMLElement,
-    controller: WebMatchController,
     translate: Translator,
   ) {
     this.doc = doc;
     this.banner = banner;
     this.modalRoot = modalRoot;
     this.statusBar = statusBar;
-    this.controller = controller;
     this.translate = translate;
     this.statusLabel = doc.createElement("span");
     this.elapsedLabel = doc.createElement("span");
@@ -616,6 +617,8 @@ class MatchPresenter {
   }
 
   private showGameOver(gameOver: GameOverView | null): void {
+    if (gameOver == null) this.gameOverDismissed = false;
+    if (this.gameOverDismissed) return;
     const signature = gameOver == null ? "" : `${gameOver.winner}:${gameOver.reason}`;
     if (signature === this.modalSignature) return;
     this.modalSignature = signature;
@@ -651,7 +654,9 @@ class MatchPresenter {
     again.className = "button button--primary";
     again.textContent = t("gameOver.playAgain");
     again.addEventListener("click", () => {
-      this.controller.resetMatch();
+      this.gameOverDismissed = true;
+      this.modalRoot.textContent = "";
+      this.doc.getElementById("restart-button")?.focus();
     });
     actions.appendChild(again);
 

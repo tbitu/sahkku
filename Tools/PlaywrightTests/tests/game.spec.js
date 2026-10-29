@@ -126,11 +126,12 @@ async function openClient(page) {
   await expect(statusBar(page)).not.toBeEmpty();
 }
 
-/** Applies a match setup through the toolbar, which is how a player re-seats a match. */
+/** Configures and explicitly starts a match through the toolbar. */
 async function applySetup(page, { mode, starter, speed }) {
   if (mode != null) await page.selectOption('#mode-select', mode);
   if (starter != null) await page.selectOption('#starter-select', starter);
   if (speed != null) await page.selectOption('#speed-select', speed);
+  await page.locator('#restart-button').click();
 }
 
 /** Throws the dice and waits until one of them is up for spending. */
@@ -235,11 +236,92 @@ test('cold launch: the board renders and the console stays clean', async ({ page
   await expect(tray.locator('.die svg.die-shape')).toHaveCount(DICE_COUNT);
   await expect(tray.locator('.die[aria-label]')).toHaveCount(DICE_COUNT);
 
-  // The client is fully wired: the language selector is populated and the match is underway — the
-  // shipped setup throws for the start, so either side may be to move by now.
+  // The board is a preview until the player explicitly starts.
   await expect(page.locator('#locale-select option')).toHaveCount(3);
-  await expect(statusBar(page)).toHaveAttribute('data-phase', /^(roll|move)$/);
+  await expect(statusBar(page)).toHaveAttribute('data-phase', 'setup');
+  await expect(rollButton(page)).toHaveCount(0);
+  await expect(page.locator('#restart-button')).toHaveText('Start game');
 
+  failures.expectClean();
+});
+
+test('setup dropdowns never start or reset a match', async ({ page }) => {
+  const failures = watchForFailures(page);
+  await seedDice(page);
+  await openClient(page);
+  await page.clock.install();
+  const preview = await boardSignature(page);
+  await page.selectOption('#mode-select', 'bot_vs_bot');
+  await page.selectOption('#bot1-select', 'random');
+  await page.selectOption('#bot2-select', 'easy');
+  await page.selectOption('#variant-select', 'standard');
+  await page.selectOption('#starter-select', 'P2');
+  await page.selectOption('#speed-select', 'fast');
+  await page.clock.runFor(3000);
+  expect(await boardSignature(page)).toEqual(preview);
+  await expect(statusBar(page)).toHaveAttribute('data-phase', 'setup');
+  await expect(page.locator('#board .cell.is-actionable')).toHaveCount(0);
+
+  await applySetup(page, { mode: 'hotseat_2p', starter: 'P1' });
+  await expect(page.locator('#board .piece--soldier.piece--active')).toHaveCount(0);
+  await expect(rollButton(page)).toBeVisible();
+  const snapshot = () => page.locator('#board, #dice-tray, #dice-actions, #status-bar')
+    .evaluateAll(elements => elements.map(element => element.outerHTML));
+  const before = await snapshot();
+  await page.selectOption('#mode-select', 'bot_vs_bot');
+  await page.selectOption('#bot1-select', 'easy');
+  await page.selectOption('#bot2-select', 'random');
+  await page.selectOption('#variant-select', 'evenOdds');
+  await page.selectOption('#starter-select', 'P2');
+  await page.clock.runFor(3000);
+  expect(await snapshot()).toEqual(before);
+  await page.locator('#restart-button').click();
+  await expect(page.locator('#board .piece--soldier.piece--active')).toHaveCount(6);
+  await expect(statusBar(page)).toHaveAttribute('data-turn', 'bot');
+  await expect(statusBar(page)).toContainText(MEN);
+  failures.expectClean();
+});
+
+test('Play again leaves the final board until Start game is pressed', async ({ page }) => {
+  const failures = watchForFailures(page);
+  await seedDice(page);
+  await openClient(page);
+  await applySetup(page, { mode: 'hotseat_2p', starter: 'P1' });
+  const move = async (from, to) => {
+    await page.locator(`#board .cell[data-place="${from}"]`).click();
+    const destination = page.locator(`#board .cell[data-place="${to}"]`);
+    await expect(destination).toHaveClass(/is-highlight/);
+    await destination.click();
+  };
+  await planDice(page, PLAY_PLAN);
+  await rollDice(page);
+  await move(14, 17);
+  await move(17, 20);
+  await move(20, 23);
+  // Activate the opposing queen so the inactive-piece protection no longer shields it.
+  await planDice(page, [SAHKKU_FACE, ZERO_FACE, ZERO_FACE]);
+  await rollDice(page);
+  await page.locator('#dice-actions [data-action="keep"]').click();
+  await move(26, 27);
+  await planDice(page, [TWO_FACE]);
+  await rollDice(page);
+  await move(23, 25);
+  await move(25, 27);
+  await expect(statusBar(page)).toHaveAttribute('data-phase', 'gameover');
+  const finalBoard = await boardSignature(page);
+  await page.getByRole('button', { name: 'Play Again', exact: true }).click();
+  await expect(page.locator('#modal-root')).toBeEmpty();
+  expect(await boardSignature(page)).toEqual(finalBoard);
+  await expect(statusBar(page)).toHaveAttribute('data-phase', 'gameover');
+  await expect(page.locator('#restart-button')).toBeFocused();
+  await page.selectOption('#locale-select', 'no');
+  await page.selectOption('#variant-select', 'standard');
+  await expect(page.locator('#modal-root')).toBeEmpty();
+  expect(await boardSignature(page)).toEqual(finalBoard);
+  await page.locator('#restart-button').click();
+  await expect(statusBar(page)).toHaveAttribute('data-phase', 'roll');
+  await expect(page.locator('#board .piece--queen')).toHaveCount(2);
+  await expect(page.locator('#board .piece--soldier.piece--active')).toHaveCount(0);
   failures.expectClean();
 });
 
@@ -359,6 +441,7 @@ for (const variant of ['evenOdds', 'standard']) {
     await openClient(page);
     await applySetup(page, { mode: 'hotseat_2p', starter: 'P1' });
     await page.selectOption('#variant-select', variant);
+    await page.locator('#restart-button').click();
 
     const actual = await page.locator('#board .cell').evaluateAll((cells) =>
       cells.flatMap((cell) =>
@@ -518,9 +601,11 @@ test('heuristic levels are selectable and a Hard search can be cancelled by a ne
   await bot.selectOption('hard');
   await page.locator('#starter-select').selectOption('P2');
   await planDice(page, [THREE_FACE, TWO_FACE, SAHKKU_FACE]);
-  // Changing mode restarts the match, cancels in-flight work and gives control back to humans.
+  await page.locator('#restart-button').click();
+  // Changing mode only configures the next match; Start cancels in-flight work.
   await expect(statusBar(page)).toHaveAttribute('data-turn', 'bot');
   await page.locator('#mode-select').selectOption('hotseat_2p');
+  await page.locator('#restart-button').click();
   await expect(statusBar(page)).toHaveAttribute('data-turn', 'human');
   const before = await boardSignature(page);
   await page.locator('#locale-select').selectOption('no');
@@ -540,6 +625,7 @@ for (const width of [1280, 390]) {
     await seedDice(page);
     await openClient(page);
     await page.clock.install();
+    await page.clock.pauseAt(new Date(Date.now() + 1000));
     await applySetup(page, { mode: 'human_vs_bot', starter: 'P2', speed: 'fast' });
     const boardBefore = await page.locator('#board').boundingBox();
     await planDice(page, PLAY_PLAN);
@@ -568,6 +654,7 @@ for (const width of [1280, 390]) {
     await expect(statusBar(page)).toHaveAttribute('data-thinking', 'true');
     await expect(elapsed).toBeHidden();
     await page.locator('#mode-select').selectOption('hotseat_2p');
+    await page.locator('#restart-button').click();
     await expect(statusBar(page)).not.toHaveAttribute('data-thinking', 'true');
     await page.clock.fastForward(20000);
     await expect(elapsed).toBeHidden();

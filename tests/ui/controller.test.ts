@@ -37,6 +37,32 @@ import { Board, testEngine } from "../helpers/board";
 
 // ---------------------------------------------------------------------------------- test doubles
 
+describe("explicit match start", () => {
+  it("keeps the preview inert until a fresh match is started", () => {
+    const engine = testEngine();
+    const controller = new WebMatchController(
+      engine, new ScriptedRandomSource([DieFace.Three, DieFace.Three, DieFace.Three]),
+      new EngineOptions(PieceOwner.P1, true), undefined, { started: false },
+    );
+    const before = JSON.stringify(controller.state);
+    expect(controller.viewModel.phase).toBe("setup");
+    expect(controller.viewModel.statusText).toContain("Start game");
+    expect(controller.canRoll).toBe(false);
+    expect(controller.canHumanAct).toBe(false);
+    expect(controller.viewModel.dice.canRoll).toBe(false);
+    expect(controller.viewModel.selectablePieceIds).toEqual([]);
+    expect(controller.roll()).toBe(false);
+    expect(controller.rollAutomated()).toBe(false);
+    expect(controller.keepDice()).toBe(false);
+    expect(controller.handlePlaceClick(14)).toBe(false);
+    expect(JSON.stringify(controller.state)).toBe(before);
+
+    controller.restart();
+    expect(controller.viewModel.phase).toBe("roll");
+    expect(controller.roll()).toBe(true);
+  });
+});
+
 /** A die source that returns a fixed sequence of face indices and refuses to invent more. */
 class ScriptedRandomSource implements IRandomSource {
   private readonly sequence: number[];

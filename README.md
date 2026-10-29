@@ -36,6 +36,9 @@ this repository now builds the 2D web client described below.
   the ruleset's spending order, capture counters, rule-event banners, an end-of-match card, match setup
   (single player against a bot, local hot-seat, spectator bot-vs-bot, pace, variant, starting player) and
   a rules/help modal. Bot speed can be changed during a match without resetting the board, dice or turn.
+  Choose the match setup, then press **Start game**; dropdown changes configure the next match without
+  starting or resetting play. **Play again** dismisses the result card and keeps the final board visible
+  until **Start game** is pressed.
 - **Localization** (`src/locale/`): North Sámi (`se`), Norwegian (`no`) and English (`en`) string tables,
   switched live from the toolbar — every piece of chrome, an open dialog included, re-letters at once.
 - **Sound and settings** (`src/audio/`, `src/ui/settings.ts`): Web Audio cues synthesised at runtime (no
