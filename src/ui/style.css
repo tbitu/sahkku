@@ -1054,6 +1054,15 @@ body {
   color: var(--ink-dim);
 }
 
+.field-hint--success {
+  color: #2e7d32;
+  font-weight: 500;
+}
+
+.field-hint--error {
+  color: #c62828;
+}
+
 .modal-actions {
   gap: 0.6rem;
   flex-wrap: wrap;

@@ -172,9 +172,22 @@ export class LlmConfigFile {
  */
 export function normalizeEndpoint(endpoint: string | null | undefined): string {
   let value = endpoint == null ? "" : endpoint.trim();
-  if (value.length === 0) value = DefaultEndpoint;
+  if (value.length === 0) return DefaultEndpoint;
   if (value.toLowerCase().endsWith("/chat/completions")) return value;
-  return `${value.replace(/\/+$/, "")}/chat/completions`;
+  if (/(?:^|\/)v1\/?$/i.test(value)) {
+    return `${value.replace(/\/+$/, "")}/chat/completions`;
+  }
+  try {
+    const url = new URL(value);
+    if (url.pathname === "" || url.pathname === "/") {
+      return `${value.replace(/\/+$/, "")}/v1/chat/completions`;
+    }
+  } catch {
+    if (/^https?:\/\/[^/]+\/?$/i.test(value)) {
+      return `${value.replace(/\/+$/, "")}/v1/chat/completions`;
+    }
+  }
+  return value;
 }
 
 /** Trims a model name and falls back to the default when it is empty. */

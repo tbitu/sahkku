@@ -22,6 +22,7 @@ import {
   normalizeEndpointUrl,
   normalizeModelName,
   normalizeSettings,
+  probeLlmConnection,
   type SahkkuSettings,
   type StorageLike,
 } from "../../src/ui/settings";
@@ -175,6 +176,15 @@ describe("SettingsStore (T4_SETTINGS_STORAGE)", () => {
     expect(normalizeEndpointUrl("http://localhost:1234/v1/chat/completions")).toBe(
       "http://localhost:1234/v1/chat/completions",
     );
+    expect(normalizeEndpointUrl("http://localhost:1234")).toBe(
+      "http://localhost:1234/v1/chat/completions",
+    );
+    expect(normalizeEndpointUrl("http://localhost:11434")).toBe(
+      "http://localhost:11434/v1/chat/completions",
+    );
+    expect(normalizeEndpointUrl("http://localhost:11434/api/chat")).toBe(
+      "http://localhost:11434/api/chat",
+    );
     expect(normalizeEndpointUrl("   ")).toBe(LlmConfig.DefaultEndpointUrl);
     expect(normalizeEndpointUrl("https://api.example.com/openai/CHAT/COMPLETIONS")).toContain(
       "/CHAT/COMPLETIONS",
@@ -288,6 +298,72 @@ describe("SettingsModal", () => {
     expect((container.firstElementChild as unknown as FakeElement).getAttribute("aria-label")).toBe(
       "se:settings.label",
     );
+  });
+});
+
+describe("probeLlmConnection", () => {
+  it("detects models successfully via GET /models", async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async (url: string | URL | Request) => {
+      const urlStr = String(url);
+      if (urlStr.includes("/models")) {
+        return {
+          ok: true,
+          status: 200,
+          statusText: "OK",
+          json: async () => ({
+            data: [{ id: "qwen-test-model" }, { id: "backup-model" }],
+          }),
+        } as unknown as Response;
+      }
+      return { ok: false, status: 404, statusText: "Not Found", text: async () => "Not Found" } as unknown as Response;
+    }) as typeof fetch;
+
+    try {
+      const result = await probeLlmConnection("http://localhost:1234/v1/chat/completions", "test", 2);
+      expect(result.ok).toBe(true);
+      expect(result.models).toEqual(["qwen-test-model", "backup-model"]);
+      expect(result.message).toContain("qwen-test-model");
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("falls back to POST probe when GET /models fails but POST chat completion succeeds", async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+      const urlStr = String(url);
+      if (urlStr.includes("/models")) {
+        return { ok: false, status: 404, statusText: "Not Found", text: async () => "Not Found" } as unknown as Response;
+      }
+      if (init?.method === "POST") {
+        return { ok: true, status: 200, statusText: "OK", text: async () => "{}" } as unknown as Response;
+      }
+      return { ok: false, status: 500, statusText: "Error", text: async () => "Error" } as unknown as Response;
+    }) as typeof fetch;
+
+    try {
+      const result = await probeLlmConnection("http://localhost:11434/api/chat", "test", 2);
+      expect(result.ok).toBe(true);
+      expect(result.message).toContain("Connected!");
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("reports failure message when endpoint is unreachable", async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async () => {
+      throw new Error("Failed to fetch");
+    }) as typeof fetch;
+
+    try {
+      const result = await probeLlmConnection("http://localhost:9999/v1/chat/completions", "test", 2);
+      expect(result.ok).toBe(false);
+      expect(result.message).toContain("Failed to fetch");
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 });
 

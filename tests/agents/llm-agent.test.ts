@@ -130,11 +130,17 @@ describe("LlmAgentTests", () => {
 
     const request = transport.requests[0];
     expect(transport.endpoints[0]).toBe("http://localhost:1234/v1/chat/completions");
-    expect(request).toContain('"model":"pairflow-player"');
+    expect(request, "when model is blank, the model field is omitted").not.toContain('"model"');
     expect(request).toContain('"stream":false');
     expect(request, "the engine's own move list is what the model ranks").toContain("## Legal moves");
     expect(request).toContain("move_index");
     expect(request, "the numbered list describes the piece the engine found").toContain(`#${legalMoves[0].pieceId}`);
+
+    // When a model name is explicitly configured, it is included in the request payload
+    const customConfig = new LlmConfig({ modelName: "custom-model" });
+    const customAgent = new LlmPlayerAgent(PieceOwner.P1, "NPC", transport, customConfig, engine);
+    await customAgent.decideMove(board.state, legalMoves);
+    expect(transport.requests[1]).toContain('"model":"custom-model"');
   });
 
   it("DecideMove_ReadsMarkdownFencedJSON", async () => {
@@ -184,6 +190,24 @@ describe("LlmAgentTests", () => {
     expect(LlmResponseParser.tryParseReroll(chat('{"reroll": false}'))).toBe(false);
     expect(LlmResponseParser.tryParseReroll(chat('{"reroll": "maybe"}'))).toBeNull();
     expect(LlmResponseParser.tryParseReroll(chat('{"move_index": 1}'))).toBeNull();
+  });
+
+  it("Parser_ReadsDecisionFromReasoningContentWhenContentIsEmpty", () => {
+    const envelope = JSON.stringify({
+      id: "test",
+      choices: [
+        {
+          index: 0,
+          message: {
+            role: "assistant",
+            content: "",
+            reasoning_content: 'I will pick move 1. {"move_index": 1, "reasoning": "advance"}',
+          },
+        },
+      ],
+    });
+    expect(LlmResponseParser.tryParseMoveIndex(envelope, 3)).toBe(1);
+    expect(LlmResponseParser.readReasoning(envelope)).toBe("advance");
   });
 
   it("Parser_StaysTotalWhenTheAnswerIsNotReadableJSON", () => {
@@ -546,6 +570,9 @@ describe("LlmConfigFileTests", () => {
       "http://localhost:1234/v1/chat/completions",
     );
     expect(normalizeEndpoint("http://localhost:1234/v1/")).toBe("http://localhost:1234/v1/chat/completions");
+    expect(normalizeEndpoint("http://localhost:1234")).toBe("http://localhost:1234/v1/chat/completions");
+    expect(normalizeEndpoint("http://localhost:11434")).toBe("http://localhost:11434/v1/chat/completions");
+    expect(normalizeEndpoint("http://localhost:11434/api/chat")).toBe("http://localhost:11434/api/chat");
     expect(normalizeEndpoint("")).toBe(DefaultEndpoint);
     expect(normalizeModel(" local-model ")).toBe("local-model");
     expect(normalizeModel(null)).toBe(DefaultModel);

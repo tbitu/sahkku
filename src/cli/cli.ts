@@ -63,7 +63,7 @@ Options:
   --endpoint <url>   OpenAI-compatible endpoint for LLM agents (default: the shared llm-config.json,
                      else ${LlmConfig.DefaultEndpointUrl}).
   --model <name>     Model name sent to the endpoint (default: the shared llm-config.json, else
-                     ${LlmConfig.DefaultModelName}, as in the game).
+                     blank to use the endpoint's loaded model).
   --seed <int>       Base seed for a reproducible run (default: the clock).
   --max-turns <N>    Half-moves before a game is declared a draw (default: 10000).
   --ruleset <path>   Path to SahkkuRules.json (default: the ruleset shipped in src/rules).

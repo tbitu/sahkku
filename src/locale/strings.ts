@@ -228,12 +228,15 @@ const englishStrings = {
       section: "LLM opponent",
       endpoint: "Endpoint URL",
       endpointHint:
-        "OpenAI-compatible base URL, e.g. http://localhost:1234/v1 for LM Studio or Ollama.",
+        "OpenAI-compatible base URL (e.g. http://localhost:1234 or http://localhost:1234/v1) or full endpoint.",
       model: "Model name",
-      modelHint: "Sent as the model field of every chat-completion request.",
+      modelHint:
+        "Optional. Leave blank to let the endpoint use its loaded model, or enter a model name.",
       timeout: "Request timeout (seconds)",
       timeoutHint: "How long the NPC may think before the heuristic takes over.",
       fallbackNotice: "Announce when the NPC falls back to the heuristic",
+      testConnection: "Test Connection",
+      testing: "Testing connection...",
     },
     audio: {
       section: "Sound",
@@ -470,12 +473,15 @@ const northSamiStrings: StringTable = {
       section: "LLM-vuostášeaddji",
       endpoint: "Čujuhusa URL",
       endpointHint:
-        "OpenAI-heivvolaš vuođđo-URL, omd. http://localhost:1234/v1 LM Studio dahje Ollama várás.",
+        "OpenAI-heivvolaš vuođđo-URL (omd. http://localhost:1234 dahje http://localhost:1234/v1) dahje olles čujuhus.",
       model: "Málle-namma",
-      modelHint: "Sáddejuvvo málle-gieddin juohke chat-completion-jearus.",
+      modelHint:
+        "Eaktodáhtolaš. Guođe guorrasin jus háliidat geavahit lasihuvvon málle, dahje čális málle-nama.",
       timeout: "Jearu áigemearri (sekunddat)",
       timeoutHint: "Man guhká botta sáhttá jurddašit ovdal heuristtalaš botta váldá badjel.",
       fallbackNotice: "Diedihit, go botta vuolgá heuristihkkii",
+      testConnection: "Geahččal oktavuođa",
+      testing: "Geahččaleame oktavuođa...",
     },
     audio: {
       section: "Jietna",
@@ -700,12 +706,15 @@ const norwegianStrings: StringTable = {
       section: "LLM-motstander",
       endpoint: "Endepunkt-URL",
       endpointHint:
-        "OpenAI-kompatibel basis-URL, f.eks. http://localhost:1234/v1 for LM Studio eller Ollama.",
+        "OpenAI-kompatibel basis-URL (f.eks. http://localhost:1234 eller http://localhost:1234/v1) eller fullt endepunkt.",
       model: "Modellnavn",
-      modelHint: "Sendes som modellfeltet i hver chat-fullføring.",
+      modelHint:
+        "Valgfritt. La stå tomt for å la serveren bruke lastet modell, eller angi modellnavn.",
       timeout: "Tidsgrense for forespørsel (sekunder)",
       timeoutHint: "Hvor lenge boten kan tenke før den heuristiske botten tar over.",
       fallbackNotice: "Varsle når boten faller tilbake til heuristikk",
+      testConnection: "Test tilkobling",
+      testing: "Tester tilkobling...",
     },
     audio: {
       section: "Lyd",

@@ -130,9 +130,26 @@ export function llmConfigFrom(settings: SahkkuSettings): LlmConfig {
  */
 export function normalizeEndpointUrl(endpoint: string | null | undefined): string {
   let value = endpoint == null ? "" : endpoint.trim();
-  if (value.length === 0) value = LlmConfig.DefaultEndpointUrl;
+  if (value.length === 0) return LlmConfig.DefaultEndpointUrl;
+
   if (value.toLowerCase().endsWith("/chat/completions")) return value;
-  return `${value.replace(/\/+$/, "")}/chat/completions`;
+
+  if (/(?:^|\/)v1\/?$/i.test(value)) {
+    return `${value.replace(/\/+$/, "")}/chat/completions`;
+  }
+
+  try {
+    const url = new URL(value);
+    if (url.pathname === "" || url.pathname === "/") {
+      return `${value.replace(/\/+$/, "")}/v1/chat/completions`;
+    }
+  } catch {
+    if (/^https?:\/\/[^/]+\/?$/i.test(value)) {
+      return `${value.replace(/\/+$/, "")}/v1/chat/completions`;
+    }
+  }
+
+  return value;
 }
 
 /** Trims a model name, falling back to the shipped default when it is empty. */
@@ -341,6 +358,27 @@ export class SettingsModal {
           t("settings.llm.timeoutHint"),
         ),
         checkboxField(doc, "fallback-notice", t("settings.llm.fallbackNotice"), values.notifyOnFallback),
+        testConnectionRow(doc, t, async (statusEl) => {
+          const endpointInput = overlay.querySelector<HTMLInputElement>('[name="endpoint"]');
+          const modelInput = overlay.querySelector<HTMLInputElement>('[name="model"]');
+          const timeoutInput = overlay.querySelector<HTMLInputElement>('[name="timeout"]');
+
+          const endpoint = normalizeEndpointUrl(endpointInput?.value);
+          const model = modelInput?.value?.trim() ?? "";
+          const timeout = Number(timeoutInput?.value) || 10;
+
+          statusEl.textContent = t("settings.llm.testing");
+          statusEl.className = "field-hint";
+
+          const result = await probeLlmConnection(endpoint, model, timeout);
+          if (result.ok) {
+            statusEl.textContent = `✓ ${result.message}`;
+            statusEl.className = "field-hint field-hint--success";
+          } else {
+            statusEl.textContent = `✗ ${result.message}`;
+            statusEl.className = "field-hint field-hint--error";
+          }
+        }),
       ]),
     );
 
@@ -404,6 +442,118 @@ export class SettingsModal {
     this.onSave?.(settings);
     this.close();
   }
+}
+
+export interface ProbeResult {
+  ok: boolean;
+  message: string;
+  models?: string[];
+}
+
+/** Probes an LLM endpoint with a short timeout to verify connectivity and discover available models. */
+export async function probeLlmConnection(
+  endpointUrl: string,
+  modelName: string,
+  timeoutSeconds = 10,
+): Promise<ProbeResult> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(new Error("Connection timed out")), timeoutSeconds * 1000);
+
+  let modelsUrl: string | null = null;
+  if (/\/chat\/completions\/?$/i.test(endpointUrl)) {
+    modelsUrl = endpointUrl.replace(/\/chat\/completions\/?$/i, "/models");
+  } else if (/\/v1\/?$/i.test(endpointUrl)) {
+    modelsUrl = `${endpointUrl.replace(/\/+$/, "")}/models`;
+  }
+
+  try {
+    if (modelsUrl != null) {
+      try {
+        const response = await fetch(modelsUrl, {
+          method: "GET",
+          signal: controller.signal,
+        });
+        if (response.ok) {
+          const data = (await response.json()) as { data?: Array<{ id?: string }>; models?: Array<{ name?: string }> };
+          const modelList: string[] = [];
+          if (Array.isArray(data.data)) {
+            for (const item of data.data) {
+              if (item.id) modelList.push(item.id);
+            }
+          } else if (Array.isArray(data.models)) {
+            for (const item of data.models) {
+              if (item.name) modelList.push(item.name);
+            }
+          }
+          clearTimeout(timer);
+          return {
+            ok: true,
+            message: modelList.length > 0 ? `Connected! Models: ${modelList.join(", ")}` : "Connected to server!",
+            models: modelList,
+          };
+        }
+      } catch {
+        // Fall back to POST probe below
+      }
+    }
+
+    const probeBody: Record<string, unknown> = {
+      max_tokens: 16,
+      messages: [{ role: "user", content: "ping" }],
+    };
+    if (modelName.trim().length > 0) {
+      probeBody.model = modelName.trim();
+    }
+
+    const response = await fetch(endpointUrl, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(probeBody),
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+
+    if (response.ok) {
+      return { ok: true, message: "Connected! Endpoint answered successfully." };
+    }
+    const errorText = await response.text().catch(() => "");
+    return {
+      ok: false,
+      message: `HTTP ${response.status}${response.statusText ? " " + response.statusText : ""}${errorText ? `: ${errorText.slice(0, 80)}` : ""}`,
+    };
+  } catch (error) {
+    clearTimeout(timer);
+    return {
+      ok: false,
+      message: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
+function testConnectionRow(
+  doc: Document,
+  t: Translator,
+  onTest: (statusEl: HTMLElement) => void,
+): HTMLElement {
+  const row = doc.createElement("div");
+  row.className = "field";
+
+  const btn = doc.createElement("button");
+  btn.type = "button";
+  btn.className = "button button--secondary";
+  btn.dataset["action"] = "test-connection";
+  btn.textContent = t("settings.llm.testConnection");
+
+  const status = doc.createElement("div");
+  status.className = "field-hint";
+  status.dataset["status"] = "test-connection";
+
+  btn.addEventListener("click", () => {
+    onTest(status);
+  });
+
+  row.append(btn, status);
+  return row;
 }
 
 // ----------------------------------------------------------------------------------------------

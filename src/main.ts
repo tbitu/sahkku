@@ -231,6 +231,7 @@ export function startSahkkuApp(doc: Document = document): SahkkuApp {
       transport: llm.transport,
       llmConfig: llm.config,
       log: (message) => {
+        console.log(`[Bot] ${message}`);
         if (/search failed/i.test(message)) {
           console.error(message);
           presenter.notice(i18n.t("notifications.searchFallback"));
@@ -263,6 +264,15 @@ export function startSahkkuApp(doc: Document = document): SahkkuApp {
     botDriver.start();
   };
 
+  /** Updates the live agents in botDriver to match current setup and settings. */
+  const updateLiveBots = (): void => {
+    const llm = llmDependencies();
+    botDriver.setAgents({
+      [PieceOwner.P1]: agentFor(PieceOwner.P1, llm),
+      [PieceOwner.P2]: agentFor(PieceOwner.P2, llm),
+    });
+  };
+
   // ------------------------------------------------------------------ toolbar and dialogs
 
   const settingsModal = new SettingsModal({
@@ -272,6 +282,7 @@ export function startSahkkuApp(doc: Document = document): SahkkuApp {
     onSave: (saved) => {
       applyAudioSettings(saved);
       i18n.setLocale(saved.locale);
+      updateLiveBots();
     },
   });
 
@@ -339,9 +350,11 @@ export function startSahkkuApp(doc: Document = document): SahkkuApp {
   });
   bot1Select.addEventListener("change", () => {
     setup = { ...setup, bots: { ...setup.bots, p1: readBotKind(bot1Select.value, setup.bots.p1) } };
+    updateLiveBots();
   });
   bot2Select.addEventListener("change", () => {
     setup = { ...setup, bots: { ...setup.bots, p2: readBotKind(bot2Select.value, setup.bots.p2) } };
+    updateLiveBots();
   });
   speedSelect.addEventListener("change", () => {
     setup = { ...setup, speed: isBotSpeed(speedSelect.value) ? speedSelect.value : setup.speed };

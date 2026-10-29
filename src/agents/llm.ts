@@ -47,8 +47,8 @@ export interface LlmTransport {
   postChatCompletion(endpointUrl: string, requestJson: string, signal?: AbortSignal): Promise<string>;
 }
 
-/** Default per-request deadline of `FetchLlmTransport`, matching the reference client's 10 seconds. */
-export const DefaultTransportTimeoutMs = 10000;
+/** Default per-request deadline of `FetchLlmTransport`, allowing local LLMs adequate thinking time. */
+export const DefaultTransportTimeoutMs = 30000;
 
 /**
  * The shipped transport: plain `fetch` against any OpenAI-compatible endpoint — LM Studio
@@ -134,11 +134,11 @@ export class LlmConfig {
   /** LM Studio's local server, with the chat-completions path spelled out. */
   static readonly DefaultEndpointUrl = "http://localhost:1234/v1/chat/completions";
 
-  /** The model name the endpoint is asked to serve; LM Studio ignores it when one model is loaded. */
-  static readonly DefaultModelName = "pairflow-player";
+  /** The model name the endpoint is asked to serve; empty by default so endpoints use their loaded model. */
+  static readonly DefaultModelName = "";
 
-  /** Deliberately low, so an NPC that cannot answer is worth less than the deterministic fallback. */
-  static readonly DefaultRequestTimeoutMs = 5000;
+  /** Adequate budget for local LLMs and thinking models to respond without prematurely aborting. */
+  static readonly DefaultRequestTimeoutMs = 30000;
 
   endpointUrl: string;
   modelName: string;
@@ -150,7 +150,7 @@ export class LlmConfig {
     this.endpointUrl = init.endpointUrl ?? LlmConfig.DefaultEndpointUrl;
     this.modelName = init.modelName ?? LlmConfig.DefaultModelName;
     this.temperature = init.temperature ?? 0.2;
-    this.maxTokens = init.maxTokens ?? 256;
+    this.maxTokens = init.maxTokens ?? 1024;
     this.requestTimeoutMs = init.requestTimeoutMs ?? LlmConfig.DefaultRequestTimeoutMs;
   }
 }
@@ -166,16 +166,23 @@ export function buildLlmChatRequest(
   userPrompt: string | null,
 ): string {
   const effective = config ?? new LlmConfig();
-  return JSON.stringify({
-    model: effective.modelName ?? "",
+  const request: Record<string, unknown> = {
     temperature: Math.round((effective.temperature ?? 0) * 1000) / 1000,
-    max_tokens: effective.maxTokens ?? 0,
+    max_tokens: effective.maxTokens ?? 1024,
     stream: false,
+    reasoning_effort: "low",
     messages: [
       { role: "system", content: systemPrompt ?? "" },
       { role: "user", content: userPrompt ?? "" },
     ],
-  });
+  };
+
+  const model = effective.modelName?.trim();
+  if (model && model.length > 0) {
+    request.model = model;
+  }
+
+  return JSON.stringify(request);
 }
 
 // ----------------------------------------------------------------------------------------------
@@ -255,7 +262,12 @@ export class LlmResponseParser {
     if (!isJsonObject(message)) return responseBody;
 
     const text = contentText(message["content"]);
-    return text == null || text.length === 0 ? responseBody : text;
+    if (text != null && text.trim().length > 0) return text;
+
+    const reasoning = contentText(message["reasoning_content"] ?? message["reasoning"]);
+    if (reasoning != null && reasoning.trim().length > 0) return reasoning;
+
+    return responseBody;
   }
 
   /**
@@ -398,20 +410,20 @@ export class LlmPlayerAgent implements PlayerAgent {
   static readonly MoveSystemPrompt =
     "You are a Sáhkku player. You will be given the board, the dice in spending order and the " +
     "numbered list of legal moves for the current player.\n" +
-    "Choose the strongest move and answer with one JSON object and nothing else.";
+    "Be concise. Do not produce lengthy internal reasoning. Choose the strongest move and answer with one JSON object and nothing else.";
 
   /** Role prompt for the optional re-roll decision. */
   static readonly RerollSystemPrompt =
     "You are a Sáhkku player. You may throw the sáhkku die again, or keep the dice and play on.\n" +
-    "Decide and answer with one JSON object and nothing else.";
+    "Be concise. Do not produce lengthy internal reasoning. Decide and answer with one JSON object and nothing else.";
 
   /** Appended to the formatted state for a move decision (the contract the parser enforces). */
   static readonly MoveInstruction =
-    '\nChoose one move. Answer ONLY with JSON: {"move_index": <number>, "reasoning": "<short reason>"}';
+    '\nChoose one move. Be concise. Answer ONLY with JSON: {"move_index": <number>, "reasoning": "<short reason>"}';
 
   /** Appended to the formatted state for a re-roll decision (the contract the parser enforces). */
   static readonly RerollInstruction =
-    '\nShould the sáhkku die be thrown again? Answer ONLY with JSON: {"reroll": <true|false>, "reasoning": "<short reason>"}';
+    '\nShould the sáhkku die be thrown again? Be concise. Answer ONLY with JSON: {"reroll": <true|false>, "reasoning": "<short reason>"}';
 
   readonly owner: PieceOwner;
   readonly name: string;
@@ -484,6 +496,7 @@ export class LlmPlayerAgent implements PlayerAgent {
       // failure, so it propagates instead of being absorbed by the fallback below. A timeout lands in
       // the *transport's* own deadline, which never sets the caller's signal, so it still recovers.
       if (signal?.aborted === true) throw error;
+      console.warn(`[LlmPlayerAgent] ${this.name}: reroll request failed:`, error);
       this.writeLog(`the reroll request failed (${errorMessage(error)}); deciding heuristically.`);
     }
 
@@ -530,6 +543,7 @@ export class LlmPlayerAgent implements PlayerAgent {
       this.writeLog("the endpoint did not answer with a usable move index; playing the heuristic choice.");
     } catch (error) {
       if (signal?.aborted === true) throw error;
+      console.warn(`[LlmPlayerAgent] ${this.name}: move request failed:`, error);
       this.writeLog(`the move request failed (${errorMessage(error)}); playing the heuristic choice.`);
     }
 
