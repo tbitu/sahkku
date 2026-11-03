@@ -164,20 +164,26 @@ function figureFigureOfEight(doc: Document): SVGElement {
 
   svg.appendChild(roundedRect(doc, { x: 8, y: 12, width: 224, height: 96, rx: 10, class: "help-wood" }));
 
-  // The lap: along the near home row, up the right end, back along the far home row, down the left end.
-  const lap = "M28 96 L212 96 L212 24 L28 24 L28 96";
-  svg.appendChild(svgPath(doc, lap, "help-lap"));
-
   for (const y of [24, 60, 96]) {
-    for (let column = 0; column < 10; ++column) {
-      const x = 24 + column * 21;
+    for (let column = 0; column < 15; ++column) {
+      const x = 24 + column * 13;
       svg.appendChild(
-        roundedRect(doc, { x, y: y - 8, width: 16, height: 16, rx: 3, class: "help-cell" }),
+        roundedRect(doc, { x, y: y - 8, width: 8, height: 16, rx: 3, class: "help-cell" }),
       );
     }
   }
 
-  svg.appendChild(svgCircle(doc, 132, 60, 6, "help-king"));
+  svg.appendChild(svgCircle(doc, 119, 60, 6, "help-king"));
+
+  // Offset the two middle-row passes so both are visible; they use the same cells in play.
+  const lap = "M28 96 L210 96 L210 64 L28 64 L28 24 L210 24 L210 56 L28 56 L28 96";
+  svg.appendChild(svgPath(doc, lap, "help-lap"));
+  for (const y of [24, 96]) {
+    svg.appendChild(svgPath(doc, `M154 ${y - 4} L160 ${y} L154 ${y + 4}`, "help-arrow"));
+  }
+  for (const y of [56, 64]) {
+    svg.appendChild(svgPath(doc, `M84 ${y - 3} L78 ${y} L84 ${y + 3}`, "help-arrow"));
+  }
   return svg;
 }
 
