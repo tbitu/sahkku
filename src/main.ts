@@ -30,6 +30,7 @@ import {
   BotSpeeds,
   BotThinkDelayMs,
   DefaultMatchSetup,
+  DiceFeedbackDelayMs,
   GameModes,
   StartingPlayers,
   Variants,
@@ -146,7 +147,6 @@ export function startSahkkuApp(doc: Document = document): SahkkuApp {
   const random = new UniformRandomSource(engine.rules.dice.faces.length);
 
   let setup: MatchSetup = { ...DefaultMatchSetup };
-  let activeMode: GameMode | null = null;
 
   const controller = new WebMatchController(engine, random, engineOptionsFor({
     ...setup, startingPlayer: "P1",
@@ -155,6 +155,7 @@ export function startSahkkuApp(doc: Document = document): SahkkuApp {
     humanPlayers: humanSeatsFor(setup),
     sounds: audio,
     translate: i18n.t,
+    diceFeedbackDelayMs: DiceFeedbackDelayMs[setup.speed],
   });
 
   // ------------------------------------------------------------------ the views
@@ -247,12 +248,12 @@ export function startSahkkuApp(doc: Document = document): SahkkuApp {
   const startMatch = (next: Partial<MatchSetup> = {}): void => {
     setup = { ...setup, ...next, bots: { ...setup.bots, ...(next.bots ?? {}) } };
     botDriver.stop();
-    activeMode = setup.mode;
 
     // The seats are changed before the new game is dealt, so the very first repaint of the fresh match
     // (and any step the driver schedules from it) already belongs to the agents this setup names.
     const llm = llmDependencies();
     botDriver.setThinkDelay(BotThinkDelayMs[setup.speed]);
+    controller.setDiceFeedbackDelay(DiceFeedbackDelayMs[setup.speed]);
     botDriver.setAgents({
       [PieceOwner.P1]: agentFor(PieceOwner.P1, llm),
       [PieceOwner.P2]: agentFor(PieceOwner.P2, llm),
@@ -333,8 +334,7 @@ export function startSahkkuApp(doc: Document = document): SahkkuApp {
   const syncToolbar = (): void => {
     bot1Select.disabled = !isBotSeat(setup, PieceOwner.P1);
     bot2Select.disabled = !isBotSeat(setup, PieceOwner.P2);
-    speedSelect.disabled = setup.mode === GameModes.hotseat2p &&
-      (activeMode == null || activeMode === GameModes.hotseat2p);
+    speedSelect.disabled = false;
     modeSelect.value = setup.mode;
     bot1Select.value = setup.bots.p1;
     bot2Select.value = setup.bots.p2;
@@ -359,6 +359,7 @@ export function startSahkkuApp(doc: Document = document): SahkkuApp {
   speedSelect.addEventListener("change", () => {
     setup = { ...setup, speed: isBotSpeed(speedSelect.value) ? speedSelect.value : setup.speed };
     botDriver.setThinkDelay(BotThinkDelayMs[setup.speed]);
+    controller.setDiceFeedbackDelay(DiceFeedbackDelayMs[setup.speed]);
     syncToolbar();
   });
   variantSelect.addEventListener("change", () => {

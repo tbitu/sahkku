@@ -163,6 +163,8 @@ const englishStrings = {
     roll: "Roll Dice",
     reroll: "Reroll Die",
     keep: "Keep & Move",
+    allBlank: "{player}: all dice are blank. Turn passes to {next}.",
+    noMoves: "{player}: remaining dice have no legal moves and stay unused. Turn passes to {next}.",
     face: {
       sahkku: "X (sáhkku)",
       three: "III (three)",
@@ -177,6 +179,7 @@ const englishStrings = {
       spent: "spent",
       active: "up for spending",
       waiting: "waiting",
+      unusable: "unusable",
     },
   },
   board: {
@@ -408,6 +411,8 @@ const northSamiStrings: StringTable = {
     roll: "Bálkke birccuid",
     reroll: "Bálkke ođđasit",
     keep: "Doala ja sirdde",
+    allBlank: "{player}: buot birccut leat guoros. Vuorru manná {next}.",
+    noMoves: "{player}: báhcán birccuiguin ii sáhte sirdit. Vuorru manná {next}.",
     face: {
       sahkku: "X (sáhkku)",
       three: "III (golbma)",
@@ -422,6 +427,7 @@ const northSamiStrings: StringTable = {
       spent: "geavahuvvon",
       active: "geavahuvvo dál",
       waiting: "vuordá",
+      unusable: "ii sáhte geavahit",
     },
   },
   board: {
@@ -641,6 +647,8 @@ const norwegianStrings: StringTable = {
     roll: "Kast terningene",
     reroll: "Kast på nytt",
     keep: "Behold og flytt",
+    allBlank: "{player}: alle terningene er blanke. Turen går til {next}.",
+    noMoves: "{player}: gjenværende terninger har ingen lovlige trekk og blir ubrukt. Turen går til {next}.",
     face: {
       sahkku: "X (sáhkku)",
       three: "III (tre)",
@@ -655,6 +663,7 @@ const norwegianStrings: StringTable = {
       spent: "brukt",
       active: "skal brukes nå",
       waiting: "venter",
+      unusable: "kan ikke brukes",
     },
   },
   board: {

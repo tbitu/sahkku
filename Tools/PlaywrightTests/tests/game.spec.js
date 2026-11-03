@@ -213,6 +213,68 @@ async function storedSettings(page) {
 
 // ---------------------------------------------------------------------------------------- tests
 
+for (const [speed, delay] of [['fast', 900], ['normal', 1600], ['slow', 2400], ['kajsa', 3500]]) {
+  test(`unusable dice: all blanks remain visible for ${speed} pace`, async ({ page }) => {
+    const failures = watchForFailures(page);
+    await seedDice(page);
+    await openClient(page);
+    await applySetup(page, { mode: 'hotseat_2p', starter: 'P1', speed });
+    await planDice(page, [ZERO_FACE]);
+    await page.clock.install();
+    await page.clock.pauseAt(new Date(Date.now() + 1000));
+    await rollButton(page).click();
+    const unused = page.locator('#dice-tray .die--unusable');
+    await expect(unused).toHaveCount(3);
+    await expect(page.locator('#dice-actions .dice-feedback')).toContainText('all dice are blank');
+    await expect(statusBar(page)).toContainText(`Turn passes to ${MEN}`);
+    await expect(rollButton(page)).toHaveCount(0);
+    await expect(page.locator('#board .cell.is-actionable')).toHaveCount(0);
+    await expect(unused.first()).toHaveAttribute('aria-label', /blank, unusable/);
+    expect(await unused.first().locator('.die-body').evaluate(el => getComputedStyle(el).fill))
+      .toBe('rgb(244, 178, 172)');
+    expect(await unused.first().evaluate(el => getComputedStyle(el).animationName))
+      .toBe('die-unusable');
+    await page.clock.runFor(delay - 1);
+    await expect(unused).toHaveCount(3);
+    await page.clock.runFor(1);
+    await expect(unused).toHaveCount(0);
+    await expect(rollButton(page)).toBeVisible();
+    await expect(statusBar(page)).toContainText(`${MEN}: roll the dice.`);
+    failures.expectClean();
+  });
+}
+
+for (const variant of ['standard', 'evenOdds']) {
+  test(`unusable dice: ${variant} no-move warning retains faces with reduced motion`, async ({ page }) => {
+    const failures = watchForFailures(page);
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await seedDice(page);
+    await openClient(page);
+    await page.selectOption('#variant-select', variant);
+    await applySetup(page, { mode: 'hotseat_2p', starter: 'P1', speed: 'normal' });
+    await planDice(page, [THREE_FACE, ZERO_FACE, ZERO_FACE]);
+    await page.clock.install();
+    await page.clock.pauseAt(new Date(Date.now() + 1000));
+    await rollButton(page).click();
+    if (variant === 'evenOdds') await moveFirstLegalPiece(page, '.piece--p1');
+    const unused = page.locator('#dice-tray .die--unusable');
+    await expect(unused).toHaveCount(variant === 'standard' ? 3 : 2);
+    await expect(page.locator('#dice-tray .die--spent')).toHaveCount(variant === 'standard' ? 0 : 1);
+    await expect(page.locator('#dice-actions .dice-feedback')).toContainText('no legal moves');
+    expect(await unused.first().evaluate(el => getComputedStyle(el).animationName)).toBe('none');
+    expect(await unused.first().locator('.die-body').evaluate(el => getComputedStyle(el).fill))
+      .toBe('rgb(244, 178, 172)');
+    await page.clock.runFor(800);
+    await page.selectOption('#locale-select', 'no');
+    await expect(page.locator('#dice-actions .dice-feedback')).toContainText('ingen lovlige trekk');
+    await page.selectOption('#speed-select', 'kajsa');
+    await page.clock.runFor(800);
+    await expect(unused).toHaveCount(0);
+    await expect(rollButton(page)).toBeVisible();
+    failures.expectClean();
+  });
+}
+
 test('cold launch: the board renders and the console stays clean', async ({ page }) => {
   const failures = watchForFailures(page);
 
@@ -421,7 +483,7 @@ test('lifecycle controls distinguish setup and play and protect a match from acc
   await expect(statusBar(page)).toHaveAttribute('data-phase', 'roll');
   await expect(statusBar(page)).toHaveAttribute('data-turn', 'human');
   await expect(page.locator('#board .piece--soldier.piece--active')).toHaveCount(0);
-  await expect(page.locator('#speed-select')).toBeDisabled();
+  await expect(page.locator('#speed-select')).toBeEnabled();
   failures.expectClean();
 });
 

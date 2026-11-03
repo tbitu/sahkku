@@ -81,9 +81,10 @@ export class DiceView {
 
       element.classList.toggle("die--active", rolled && die.active);
       element.classList.toggle("die--spent", die.spent);
+      element.classList.toggle("die--unusable", die.unusable);
       element.setAttribute(
         "aria-label",
-        dieLabel(this.translate, index, die.face, rolled, die.spent, die.active),
+        dieLabel(this.translate, index, die.face, rolled, die.spent, die.active, die.unusable),
       );
 
       const marks = element.querySelector<SVGGElement>(".die-marks");
@@ -95,9 +96,15 @@ export class DiceView {
       : "unrolled";
     if (signature !== this.lastSignature) {
       this.lastSignature = signature;
-      if (rolled) this.playRollAnimation();
+      if (rolled && view.dice.feedbackText == null) this.playRollAnimation();
     }
 
+    if (view.dice.feedbackText != null) {
+      const win = this.tray.ownerDocument.defaultView;
+      if (this.rollTimer != null) win?.clearTimeout(this.rollTimer);
+      this.rollTimer = null;
+      this.tray.classList.remove("is-rolling");
+    }
     this.renderActions(doc, view);
   }
 
@@ -148,6 +155,14 @@ export class DiceView {
 
   private renderActions(doc: Document, view: MatchViewModel): void {
     this.actions.textContent = "";
+
+    if (view.dice.feedbackText != null) {
+      const warning = doc.createElement("p");
+      warning.className = "dice-feedback";
+      warning.textContent = view.dice.feedbackText;
+      this.actions.appendChild(warning);
+      return;
+    }
 
     const order = doc.createElement("p");
     order.className = "dice-order";
@@ -295,8 +310,10 @@ function dieLabel(
   rolled: boolean,
   spent: boolean,
   active: boolean,
+  unusable: boolean,
 ): string {
   if (!rolled) return t("dice.die.notThrown", { index: index + 1 });
-  const state = t(spent ? "dice.state.spent" : active ? "dice.state.active" : "dice.state.waiting");
+  const state = t(unusable ? "dice.state.unusable" :
+    spent ? "dice.state.spent" : active ? "dice.state.active" : "dice.state.waiting");
   return t("dice.die.state", { index: index + 1, face: t(faceNameKey(face)), state });
 }
