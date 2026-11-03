@@ -694,6 +694,35 @@ body {
   animation-delay: 140ms;
 }
 
+.die--unusable {
+  animation: die-unusable 420ms ease-in-out infinite;
+}
+
+.die--unusable .die-body,
+.die--unusable .die-cap,
+.die--unusable .die-foot {
+  fill: #f4b2ac;
+  stroke: #b52d27;
+}
+
+.die--unusable .die-order {
+  background: #f4b2ac;
+  color: #641714;
+}
+
+.dice-feedback {
+  color: #f4b2ac;
+  font-weight: 700;
+  text-align: center;
+  margin: 0;
+}
+
+@keyframes die-unusable {
+  0%, 100% { transform: translateX(0); }
+  25%, 75% { transform: translateX(-3px) rotate(-4deg); }
+  50% { transform: translateX(3px) rotate(4deg); }
+}
+
 @keyframes die-roll {
   0% {
     transform: translateY(0) rotate(0deg);
@@ -710,7 +739,8 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .dice-tray.is-rolling .die {
+  .dice-tray.is-rolling .die,
+  .die--unusable {
     animation: none;
   }
 }

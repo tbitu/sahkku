@@ -87,6 +87,14 @@ export const BotThinkDelayMs: Record<BotSpeed, number> = {
   fast: 140,
 };
 
+/** Readable handover pauses, including at the fastest pace. */
+export const DiceFeedbackDelayMs: Record<BotSpeed, number> = {
+  kajsa: 3500,
+  slow: 2400,
+  normal: 1600,
+  fast: 900,
+};
+
 /** The loose-soldier variant, mapped onto the engine's single `evenOdds` flag. */
 export const Variants = ["standard", "evenOdds"] as const;
 
@@ -263,6 +271,7 @@ export interface DieView {
 
   /** The die up for spending right now. */
   active: boolean;
+  unusable: boolean;
 }
 
 export interface DiceViewState {
@@ -285,6 +294,7 @@ export interface DiceViewState {
   rollLabel: string;
   rerollLabel: string;
   keepLabel: string;
+  feedbackText: string | null;
 }
 
 export interface GameOverView {
@@ -349,6 +359,9 @@ export interface MatchControllerInit {
 
   /** Owns every string in the snapshot. Defaults to English. */
   translate?: Translator;
+
+  /** Presentation pause after unusable dice; zero keeps headless play synchronous. */
+  diceFeedbackDelayMs?: number;
 }
 
 export class WebMatchController {
@@ -366,6 +379,9 @@ export class WebMatchController {
   private translator: Translator;
   private humanPlayers: Set<PieceOwner>;
   private started: boolean;
+  private diceFeedbackDelay: number;
+  private diceFeedback: { owner: PieceOwner; firstUnused: number; allBlank: boolean } | null = null;
+  private feedbackTimer: ReturnType<typeof setTimeout> | null = null;
 
   /**
    * @param state An already-built state to sit on. Omitted by the browser client, which lets the
@@ -383,6 +399,7 @@ export class WebMatchController {
     this.random = random;
     this.options = options;
     this.started = init.started ?? true;
+    this.diceFeedbackDelay = Math.max(0, init.diceFeedbackDelayMs ?? 0);
     this.game = state ?? engine.initGame(options, random);
     this.sounds = init.sounds ?? null;
     this.translator = init.translate ?? defaultTranslate;
@@ -399,7 +416,11 @@ export class WebMatchController {
 
   /** The Roll Dice button is live. */
   get canRoll(): boolean {
-    return this.started && !this.game.gameOver && this.game.isRollPhase;
+    return this.started && !this.game.gameOver && this.game.isRollPhase && !this.showingDiceFeedback;
+  }
+
+  get showingDiceFeedback(): boolean {
+    return this.diceFeedback != null;
   }
 
   /** The owners a local human plays on this device. */
@@ -467,6 +488,11 @@ export class WebMatchController {
   /** Recomputes the derived caches and re-notifies every listener without touching the match. */
   refresh(): void {
     this.publish();
+  }
+
+  /** Speed changes affect future warnings without cutting an already-visible warning short. */
+  setDiceFeedbackDelay(milliseconds: number): void {
+    this.diceFeedbackDelay = Math.max(0, milliseconds);
   }
 
   // ------------------------------------------------------------------ match loop
@@ -580,6 +606,18 @@ export class WebMatchController {
     return this.commitMoveFor(move, false);
   }
 
+  /** Handles an automated seat on a supplied move-phase position with no legal action. */
+  passUnusableDiceAutomated(): boolean {
+    if (!this.accepts(false) || this.game.isRollPhase || this.engine.canReroll(this.game)) return false;
+    if (this.legalMoves.length > 0) return false;
+    const owner = this.game.currentPlayer;
+    const firstUnused = this.game.currentActiveDie;
+    this.beginMovePhase();
+    this.showUnusableDice(owner, firstUnused);
+    this.publish();
+    return true;
+  }
+
   /** Deals a fresh game with the same options and clears every decision. */
   resetMatch(): void {
     this.restart();
@@ -591,6 +629,9 @@ export class WebMatchController {
    */
   restart(options?: EngineOptions): void {
     if (options != null) this.options = options;
+    if (this.feedbackTimer != null) clearTimeout(this.feedbackTimer);
+    this.feedbackTimer = null;
+    this.diceFeedback = null;
     this.game = this.engine.initGame(this.options, this.random);
     this.started = true;
     this.selected = null;
@@ -603,19 +644,21 @@ export class WebMatchController {
 
   /** True when an action from this kind of seat is allowed in the current state. */
   private accepts(human: boolean): boolean {
-    if (!this.started || this.game.gameOver) return false;
+    if (!this.started || this.game.gameOver || this.showingDiceFeedback) return false;
     return this.humanPlayers.has(this.game.currentPlayer) === human;
   }
 
   private rollFor(human: boolean): boolean {
     if (!this.accepts(human) || !this.game.isRollPhase) return false;
 
+    const owner = this.game.currentPlayer;
     this.engine.rollDice(this.game, this.random);
     this.selected = null;
     this.lastEvents = [];
 
     // A sáhkku on the table opens the optional re-throw; anything else goes straight to the moves.
     if (!this.engine.canReroll(this.game)) this.beginMovePhase();
+    this.showUnusableDice(owner, 0);
 
     this.sounds?.play("roll");
     this.publish();
@@ -628,6 +671,8 @@ export class WebMatchController {
       return false;
     }
 
+    const owner = this.game.currentPlayer;
+    const firstUnused = this.game.currentActiveDie;
     this.engine.applyRerollDecision(
       this.game,
       decision,
@@ -637,6 +682,7 @@ export class WebMatchController {
 
     // A re-throw can produce another sáhkku, which reopens the decision; keeping the dice does not.
     if (!this.engine.canReroll(this.game)) this.beginMovePhase();
+    this.showUnusableDice(owner, firstUnused);
 
     this.publish();
     return true;
@@ -647,7 +693,10 @@ export class WebMatchController {
     if (!this.engine.isLegalMove(this.game, move)) return false;
 
     const from = this.engine.findPiece(this.game, move.pieceId)!.placeIndex;
+    const owner = this.game.currentPlayer;
+    const firstUnused = this.game.currentActiveDie + 1;
     this.lastEvents = this.engine.applyMove(this.game, move);
+    this.showUnusableDice(owner, firstUnused);
     this.lastMove = { from, to: move.targetPlaceIndex };
     this.selected = null;
     this.playEventSounds(this.lastEvents);
@@ -699,6 +748,20 @@ export class WebMatchController {
     if (!this.engine.evaluateAllowedPlaces(this.game)) this.engine.nextPlayerTurn(this.game);
   }
 
+  private showUnusableDice(owner: PieceOwner, firstUnused: number): void {
+    // The engine has already handed over and reset the active index, but retains the old faces.
+    if (this.game.gameOver || this.game.currentPlayer === owner ||
+        firstUnused >= this.game.dice.length || this.diceFeedbackDelay === 0) return;
+    this.diceFeedback = {
+      owner, firstUnused, allBlank: this.game.dice.every(face => face === DieFace.Zero),
+    };
+    this.feedbackTimer = setTimeout(() => {
+      this.feedbackTimer = null;
+      this.diceFeedback = null;
+      this.publish();
+    }, this.diceFeedbackDelay);
+  }
+
   private buildViewModel(): MatchViewModel {
     const state = this.game;
     const t = this.translator;
@@ -732,13 +795,19 @@ export class WebMatchController {
       }
     }
 
-    const rolled = !state.isRollPhase;
+    const feedback = this.diceFeedback;
+    const feedbackText = feedback == null ? null : t(
+      feedback.allBlank ? "dice.allBlank" : "dice.noMoves",
+      { player: t(ownerNameKey(feedback.owner)), next: t(ownerNameKey(current)) },
+    );
+    const rolled = !state.isRollPhase || feedback != null;
     const canReroll = this.engine.canReroll(state) && humanTurn;
     const dice: DieView[] = state.dice.map((face, index) => ({
       index,
       face,
-      spent: rolled && index < state.currentActiveDie,
-      active: rolled && !state.gameOver && index === state.currentActiveDie,
+      spent: rolled && index < (feedback?.firstUnused ?? state.currentActiveDie),
+      active: rolled && feedback == null && !state.gameOver && index === state.currentActiveDie,
+      unusable: feedback != null && index >= feedback.firstUnused,
     }));
 
     return {
@@ -749,11 +818,11 @@ export class WebMatchController {
       currentPlayer: current,
       currentPlayerLabel: t(ownerNameKey(current)),
       phase: !this.started ? "setup" : state.gameOver ? "gameover" : state.isRollPhase ? "roll" : "move",
-      statusText: this.statusText(state, selected),
+      statusText: feedbackText ?? this.statusText(state, selected),
       humanTurn,
       dice: {
         rolled,
-        currentActiveDie: state.currentActiveDie,
+        currentActiveDie: feedback?.firstUnused ?? state.currentActiveDie,
         dice,
         canRoll: this.canRoll && humanTurn,
         canReroll,
@@ -761,6 +830,7 @@ export class WebMatchController {
         rollLabel: t("dice.roll"),
         rerollLabel: t("dice.reroll"),
         keepLabel: t("dice.keep"),
+        feedbackText,
       },
       captures: { p1: state.p1Captures, p2: state.p2Captures },
       selectedPieceId: this.selected,
@@ -990,7 +1060,7 @@ export class BotDriver {
    * waiting on timers; `start()` only adds the scheduling.
    */
   async step(): Promise<boolean> {
-    if (this.busy) return false;
+    if (this.busy || this.controller.showingDiceFeedback) return false;
 
     const state = this.controller.state;
     if (state.gameOver) return false;
@@ -1024,9 +1094,7 @@ export class BotDriver {
       if (legalMoves.length === 0) {
         // A hand-built position can leave the move phase with nothing to play; hand over, as the
         // engine would have done after the last committed move.
-        this.engine.nextPlayerTurn(state);
-        this.controller.refresh();
-        return true;
+        return this.controller.passUnusableDiceAutomated();
       }
 
       let move: Move | null = null;
@@ -1067,7 +1135,8 @@ export class BotDriver {
     if (this.unsubscribe == null || this.timer != null || this.busy) return;
 
     const state = this.controller.state;
-    if (state.gameOver || !this.agents.has(state.currentPlayer)) return;
+    if (state.gameOver || this.controller.showingDiceFeedback ||
+        !this.agents.has(state.currentPlayer)) return;
 
     this.timer = setTimeout(() => {
       this.timer = null;

@@ -47,6 +47,10 @@ this repository now builds the 2D web client described below.
   Every move also marks its origin with a dashed outline and its destination with a solid outline
   for 3 seconds, or until the next move.
   Selection, dice rolls and language changes do not restart the timer; starting a new game clears it.
+  When a throw is all blanks or remaining dice cannot be used, the unusable dice stay visible in red
+  with a handover explanation before the next player can act. They shake unless reduced motion is
+  enabled. The pause follows Speed (Fast: 0.9 seconds, Normal: 1.6, Slow: 2.4, Kajsa: 3.5), including
+  hotseat play. Live speed changes apply to subsequent warnings; restarting clears a pending warning.
 - **Localization** (`src/locale/`): North Sámi (`se`), Norwegian (`no`) and English (`en`) string tables,
   switched live from the toolbar — every piece of chrome, an open dialog included, re-letters at once.
 - **Sound and settings** (`src/audio/`, `src/ui/settings.ts`): Web Audio cues synthesised at runtime (no
