@@ -85,8 +85,8 @@ is in [rules-engine.md](rules-engine.md#rule-traceability).
 
 ## 4. Bugs found on the way
 
-These were found in the C# implementation while it was being ported; each one is fixed in the
-TypeScript code.
+These were found in the retired C# implementation or in the TypeScript rules engine; each one is
+fixed in the current TypeScript code.
 
 * **P2's soldier win showed P1's message.** The C# presentation picked the win text from a capture
   counter and used `Player_1_Win_Soldier` in the player-two branch. The engine now reports `WinReason`
@@ -98,6 +98,11 @@ TypeScript code.
   carry the file.
 * **The enemy-territory king recruitment was silent.** It now emits `KingRecruited`, so the host plays
   the recruitment sound.
+* **Royals could be blocked from a free bend destination by their stored middle-row pass.** X could
+  cross vertically at the bend, but II and III followed only one pass and omitted the other row.
+  The king and queen now consider both passes for along-track movement; soldiers retain their fixed
+  route. Recruitment may still assign the first matching arc without restricting subsequent royal
+  moves.
 
 ## 5. Source conflicts and open questions
 
