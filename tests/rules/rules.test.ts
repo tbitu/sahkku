@@ -849,6 +849,147 @@ describe("MovementTests", () => {
   });
 });
 
+describe("RoyalBendTests", () => {
+  it.each([
+    [PieceOwner.P1, PieceType.King],
+    [PieceOwner.P1, PieceType.Queen],
+    [PieceOwner.P2, PieceType.King],
+    [PieceOwner.P2, PieceType.Queen],
+  ])("Royal_%i_%i_CanUseEitherMiddleRowPassAroundBothBends", (owner, type) => {
+    const engine = engineFromShippedRuleset();
+    const scenarios: Array<[number, DieFace, number[]]> = [
+      [29, DieFace.Two, [31, 27, 1]],
+      [29, DieFace.Three, [32, 26, 2]],
+      [28, DieFace.Two, [30, 26, 0]],
+      [28, DieFace.Three, [31, 25, 1]],
+      [27, DieFace.Three, [30, 24, 0]],
+      [15, DieFace.Two, [17, 13, 43]],
+      [15, DieFace.Three, [18, 12, 42]],
+      [16, DieFace.Two, [18, 14, 44]],
+      [16, DieFace.Three, [19, 13, 43]],
+      [17, DieFace.Three, [20, 14, 44]],
+    ];
+    for (const [firstPassArc, face, p1Targets] of scenarios) {
+      for (const passOffset of [0, 30]) {
+        const board = new Board(engine, owner);
+        const royal = board.addOnArc(firstPassArc + passOffset, type, owner, true);
+        board.phase(owner === PieceOwner.P1 ? TurnPhase.P1move : TurnPhase.P2move);
+        board.setDice(face, face);
+        const targets = p1Targets.map(place => owner === PieceOwner.P1 ? place : 44 - place);
+
+        const allowed = engine.getAllowedPlaces(board.state, royal);
+        expect([...allowed].sort((a, b) => a - b)).toEqual([...targets].sort((a, b) => a - b));
+        expect(new Set(allowed).size).toBe(allowed.length);
+        for (const target of targets) {
+          expect(board.state.places[target].pieces).toHaveLength(0);
+          const move = new Move(royal.id, target);
+          expect(engine.isLegalMove(board.state, move)).toBe(true);
+          expect(engine.legalMoves(board.state)).toContainEqual(move);
+          const next = board.state.clone();
+          engine.applyMove(next, move);
+          const moved = engine.findPiece(next, royal.id)!;
+          expect(moved.placeIndex).toBe(target);
+          expect(engine.placeOfArc(owner, moved.arc)).toBe(target);
+          expect(next.currentActiveDie).toBe(1);
+        }
+      }
+    }
+  });
+
+  it.each([PieceOwner.P1, PieceOwner.P2])("Recruitment_%i_DoesNotRestrictTheKingToTheFirstPass", owner => {
+    const engine = engineFromShippedRuleset();
+    const opponent = owner === PieceOwner.P1 ? PieceOwner.P2 : PieceOwner.P1;
+    const board = new Board(engine, owner);
+    const king = board.addOnArc(45, PieceType.King, opponent, true);
+    const recruiter = board.addOnArc(28, PieceType.Soldier, owner, true);
+    board.phase(owner === PieceOwner.P1 ? TurnPhase.P1move : TurnPhase.P2move);
+    board.setDice(DieFace.Sahhku, DieFace.Two);
+
+    engine.applyMove(board.state, new Move(recruiter.id, king.placeIndex));
+    expect(king.owner).toBe(owner);
+    expect(king.arc).toBe(29);
+    const target = engine.placeOfArc(owner, 1);
+    expect(engine.getAllowedPlaces(board.state, king)).toContain(target);
+    engine.applyMove(board.state, new Move(king.id, target));
+    expect(king.arc).toBe(1);
+  });
+
+  it("AlternativeBends_StillRespectLandingRestrictionsAndExactDieValues", () => {
+    const engine = engineFromShippedRuleset();
+    for (const [owner, active] of [[PieceOwner.P1, true], [PieceOwner.P2, false]] as const) {
+      const board = new Board(engine);
+      const king = board.addOnArc(29, PieceType.King, PieceOwner.P1, true);
+      board.add(1, PieceType.Soldier, owner, active);
+      board.phase(TurnPhase.P1move);
+      board.setDice(DieFace.Two);
+      expect(engine.getAllowedPlaces(board.state, king)).toEqual([31, 27]);
+      expect(engine.isLegalMove(board.state, new Move(king.id, 1))).toBe(false);
+      expect(engine.isLegalMove(board.state, new Move(king.id, 0))).toBe(false);
+    }
+  });
+
+  it("Soldiers_KeepTheirStoredMiddleRowPass", () => {
+    const engine = engineFromShippedRuleset();
+    for (const arc of [29, 59]) {
+      const board = new Board(engine);
+      const soldier = board.addOnArc(arc, PieceType.Soldier, PieceOwner.P1, true);
+      board.phase(TurnPhase.P1move);
+      board.setDice(DieFace.Two);
+      expect(engine.getAllowedPlaces(board.state, soldier)).toEqual([arc === 29 ? 31 : 1]);
+    }
+  });
+
+  it("AlternativeBends_AreSelectedByTheRulesetMovementPatterns", () => {
+    const scenarios: Array<[string[], number, number[]]> = [
+      [[MovePatterns.Forward, MovePatterns.Backward], 29, [31, 27]],
+      [[MovePatterns.Forward, MovePatterns.Vertical], 29, [31, 1]],
+      [[MovePatterns.Backward, MovePatterns.Vertical], 15, [13, 43]],
+    ];
+    for (const [moves, arc, targets] of scenarios) {
+      const rules = TestRuleset.load();
+      rules.pieces.queen.moves = moves;
+      const engine = new RulesEngine(rules);
+      const board = new Board(engine);
+      const queen = board.addOnArc(arc, PieceType.Queen, PieceOwner.P1, true);
+      board.phase(TurnPhase.P1move);
+      board.setDice(DieFace.Two);
+      expect(engine.getAllowedPlaces(board.state, queen)).toEqual(targets);
+    }
+  });
+
+  it("AlternativeBends_DoNotBypassActivationOrAllowTurningMidMove", () => {
+    const engine = engineFromShippedRuleset();
+    const board = new Board(engine);
+    const queen = board.addOnArc(29, PieceType.Queen, PieceOwner.P1, false, true);
+    board.phase(TurnPhase.P1move);
+    board.setDice(DieFace.Two);
+    expect(engine.getAllowedPlaces(board.state, queen)).toEqual([]);
+    queen.isActive = true;
+    expect(engine.getAllowedPlaces(board.state, queen)).not.toContain(0);
+    board.setDice(DieFace.Zero);
+    expect(engine.getAllowedPlaces(board.state, queen)).toEqual([]);
+    const middle = new Board(engine);
+    const king = middle.add(22, PieceType.King, PieceOwner.P1, true);
+    middle.phase(TurnPhase.P1move);
+    middle.setDice(DieFace.Two);
+    expect(engine.getAllowedPlaces(middle.state, king)).toEqual([24, 20]);
+  });
+
+  it("AlternativeBends_CanCaptureTheEnemyQueen", () => {
+    const engine = engineFromShippedRuleset();
+    const board = new Board(engine);
+    const king = board.addOnArc(29, PieceType.King, PieceOwner.P1, true);
+    board.add(1, PieceType.Queen, PieceOwner.P2, true);
+    board.phase(TurnPhase.P1move);
+    board.setDice(DieFace.Two);
+    const events = engine.applyMove(board.state, new Move(king.id, 1));
+    expect(Events.has(events, RuleEventKind.QueenCaptured)).toBe(true);
+    expect(board.state.winner).toBe(PieceOwner.P1);
+    expect(board.state.winReason).toBe(WinReason.QueenCaptured);
+    expect(board.state.places[1].pieces).toEqual([king]);
+  });
+});
+
 describe("CaptureTests", () => {
   function prepareSoldierCapture(
     engine: RulesEngine,

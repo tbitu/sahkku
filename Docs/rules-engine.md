@@ -77,6 +77,10 @@ Two consequences shape the engine:
   at. A move is *"advance N arcs"* and the board cell follows.
 * Bends between rows are part of the same straight move. Stepping from the end of the home row onto the
   middle row counts as going forwards, which is what lets the king "go around a bend" without turning.
+* Soldiers must follow their stored track pass. Pieces with `vertical` movement (the king and queen)
+  may use either pass through their current middle-row cell for an along-track move. This lets a royal
+  take either bend with the full die value, regardless of how it reached the cell or who recruited it.
+  The chosen destination arc is still stored, and ordinary landing restrictions still apply.
 
 `track.legs` describes one lap for player 1 in board coordinates; the second player's lap is the board
 mirror of it, because the two players sit at opposite ends of the same board.
@@ -194,7 +198,7 @@ Every clause of the player-facing rules maps onto a ruleset field and a test:
 | Both players walk mirrored tracks | the `track` mirror | `Track_IsTheBoardMirrorForTheSecondPlayer` |
 | Every piece on a line is captured | `capturable` | `CapturingASoldier_ScoresAndRemovesIt` |
 | Royal pieces never share a line, except when recruiting the king | `blocksOwnLanding`, `cannotLandOnOwnUnits`, `recruitedWhenLanded` | `Soldier_CannotLandOnOwnQueenOrKing`, `LandingOnTheKing_RecruitsIt` |
-| The king crosses rows only with the exact die value, and goes around bends | `moves` | `King_CrossesRowsOnlyWithTheExactDieValue`, `King_CrossingAtTheBendIsAlsoAStraightStep` |
+| The king crosses rows only with the exact die value, and goes around either bend regardless of its stored middle-row pass | `moves` | `King_CrossesRowsOnlyWithTheExactDieValue`, `King_CrossingAtTheBendIsAlsoAStraightStep`, `RoyalBendTests` |
 | The king is recruited when a soldier enters the enemy home row | `recruitsKingOnEnemyHomeRow` | `MovingASoldierIntoEnemyTerritory_ActivatesTheNeutralKing`, `KingRecruitmentComesFromTheRuleset` |
 | The queen starts unactivated and may be activated in any direction | `startActivatable` | `Queen_MovesForwardBackwardAndVertically` |
 | Losing the queen loses the game; losing every soldier loses the game | `landingEndsGame`, `win` | `CapturingTheQueen_EndsTheGame`, `CapturingEveryEnemySoldier_EndsTheGame`, `LosingTheQueenOnlyEndsTheGameWhenTheRulesetSaysSo` |

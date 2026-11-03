@@ -131,6 +131,29 @@ function locatedPieces(controller: WebMatchController): Array<{ piece: Piece; pl
   );
 }
 
+describe("royal middle-row bends", () => {
+  it.each([
+    [DieFace.Two, 1],
+    [DieFace.Three, 2],
+  ])("highlights and commits the king's home-row bend with die %i", (face, target) => {
+    const engine = testEngine();
+    const { controller, board } = controllerOn(engine, board => {
+      board.addOnArc(29, PieceType.King, PieceOwner.P1, true);
+      board.phase(TurnPhase.P1move);
+      board.setDice(face, face);
+    });
+    const king = board.state.places[29].pieces[0];
+    expect(controller.handlePlaceClick(29)).toBe(true);
+    expect(controller.selectedPieceId).toBe(king.id);
+    expect(controller.highlightedPlaces).toContain(target);
+    expect(controller.handlePlaceClick(target)).toBe(true);
+    expect(king.placeIndex).toBe(target);
+    expect(king.arc).toBe(target);
+    expect(controller.selectedPieceId).toBeNull();
+    expect(controller.viewModel.lastMove).toEqual({ from: 29, to: target });
+  });
+});
+
 // ---------------------------------------------------------------------------------- board geometry
 
 describe("board geometry (derived from the ruleset, never hardcoded)", () => {

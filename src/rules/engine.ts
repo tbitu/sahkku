@@ -310,6 +310,13 @@ export class RulesEngine {
     if (def.has(MovePatterns.Forward)) this.tryAddArc(state, track, piece, piece.arc + steps, allowed);
     if (def.has(MovePatterns.Backward)) this.tryAddArc(state, track, piece, piece.arc - steps, allowed);
     if (def.has(MovePatterns.Vertical)) {
+      // Royals can take either bend from the middle row, regardless of their stored track pass.
+      for (let leg = 0; leg < track.legCount; ++leg) {
+        const arc = track.arcOfPlaceInLeg(leg, piece.placeIndex);
+        if (arc < 0 || arc === piece.arc) continue;
+        if (def.has(MovePatterns.Forward)) this.tryAddArc(state, track, piece, arc + steps, allowed);
+        if (def.has(MovePatterns.Backward)) this.tryAddArc(state, track, piece, arc - steps, allowed);
+      }
       const origin = state.places[piece.placeIndex];
       this.tryAddCrossing(state, track, piece, origin.x, origin.y + steps, allowed);
       this.tryAddCrossing(state, track, piece, origin.x, origin.y - steps, allowed);
