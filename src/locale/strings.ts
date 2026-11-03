@@ -259,7 +259,7 @@ const englishStrings = {
     },
     board: {
       title: "The board and the track",
-      body: "The board is three rows of fifteen carved cells. The two outer rows are the home rows and the row between them is shared. Every piece walks the figure-of-eight lap: forward along its own row, across to the opponent's half and back again. The cells cut with an X are sacred.",
+      body: "The board is three rows of fifteen carved cells. The two outer rows are the home rows and the row between them is shared. Soldiers follow a continuous figure-of-eight track: along their home row, back along the middle row, along the opponent's home row, back along the middle row again, then onto their home row to repeat the lap. Reaching the end of the opponent's row does not end movement: the next step turns onto the middle row. The middle row is visited twice per lap (the diagram separates the two passes for clarity). The other player follows the mirrored route. The cells cut with an X are sacred.",
     },
     dice: {
       title: "The dice (birccu)",
@@ -504,7 +504,7 @@ const northSamiStrings: StringTable = {
     },
     board: {
       title: "Heasta ja báni",
-      body: "Heasttas leat golbma ráiddu, juohke ráiddus vihttanlogi čuollojuvvon saji. Olgoráiddut leat ruoktaráiddut ja gaskkas lea juhkkojuvvon ráiddu, mon goappašagat rasttilit. Juohke bierggu manná gávccahađan-šleaippa: ovddos iežaset ráiddus, rastá vuostášeaddji beallái ja ruovttoluotta. Sajit, main lea čuollojuvvon X, leat bastit.",
+      body: "Heasttas leat golbma ráiddu, juohke ráiddus vihttanlogi čuollojuvvon saji. Olgoráiddut leat ruoktaráiddut ja gaskkas lea juhkkojuvvon ráiddu, mon goappašagat rasttilit. Sotnjehat mannet gávccahađan-šleaippa: iežaset ruoktaráiddu mielde, gaskaráiddu mielde ruovttoluotta, vuostášeaddji ruoktaráiddu mielde, gaskaráiddu mielde ruovttoluotta fas ja de iežaset ruoktaráidui, gos šleaippa álgá ođđasit. Vuostášeaddji ráiddu loahpas lihkadeapmi ii nohkka: boahtte lávki manná gaskaráidui. Gaskaráiddu rasttilit guovtte geardde juohke šleaippas (govas leat dát guokte gearddi earuhuvvon čielggasvuođa dihtii). Nubbi spealli čuovvu speadjilastin-geainnu. Sajit, main lea čuollojuvvon X, leat bastit.",
     },
     dice: {
       title: "Birccut",
@@ -737,7 +737,7 @@ const norwegianStrings: StringTable = {
     },
     board: {
       title: "Brettet og banen",
-      body: "Brettet har tre rader med femten skårne ruter. Ytterradene er hjemradene, og raden mellom dem er delt. Hver brikke følger åttetallssløyfen: framover langs sin egen rad, over til motstanderens halvdel og tilbake igjen. Rutene med et skåret X er hellige.",
+      body: "Brettet har tre rader med femten skårne ruter. Ytterradene er hjemradene, og raden mellom dem er delt. Soldatene følger en sammenhengende åttetallssløyfe: langs egen hjemrad, tilbake langs midtraden, langs motstanderens hjemrad, tilbake langs midtraden igjen og så inn på egen hjemrad for en ny runde. Bevegelsen slutter ikke ved enden av motstanderens rad: neste steg svinger inn på midtraden. Midtraden passeres to ganger per runde (tegningen skiller de to passeringene for tydelighetens skyld). Den andre spilleren følger en speilvendt bane. Rutene med et skåret X er hellige.",
     },
     dice: {
       title: "Terningene (birccu)",

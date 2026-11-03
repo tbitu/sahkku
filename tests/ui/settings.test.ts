@@ -391,6 +391,14 @@ describe("HelpModal", () => {
       expect(section.querySelector(".help-figure")).not.toBeNull();
     }
 
+    const lap = sections[0].querySelector(".help-lap");
+    expect(lap?.getAttribute("d")).toBe(
+      "M28 96 L210 96 L210 64 L28 64 L28 24 L210 24 L210 56 L28 56 L28 96",
+    );
+    const figure = sections[0].querySelector("svg");
+    expect(figure?.children.filter((child) => child.className === "help-cell")).toHaveLength(45);
+    expect(figure?.children.filter((child) => child.className === "help-arrow")).toHaveLength(4);
+
     modal.close();
     expect(container.childElementCount).toBe(0);
   });
