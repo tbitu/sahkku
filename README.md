@@ -3,6 +3,8 @@
 A digital implementation of **Sáhkku**, a traditional Sámi running-fight board game with centuries of
 history.
 
+Play the deployed web client at [samiailab.samas.no/sahkku](https://samiailab.samas.no/sahkku/).
+
 The whole game is modern TypeScript: one engine-agnostic rules core, a set of interchangeable player
 agents, a headless match runner and benchmark, and an open-license 2D board that plays in the browser.
 There is no game engine, no 3D runtime, no WebAssembly and no proprietary asset pipeline — everything
