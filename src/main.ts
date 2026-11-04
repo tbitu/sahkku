@@ -55,6 +55,7 @@ import {
 } from "./ui/controller";
 import { DiceView } from "./ui/dice";
 import { HelpModal } from "./ui/help";
+import { setupDisplayModes } from "./ui/display-mode";
 import { PieceRenderer } from "./ui/pieces";
 import { SettingsModal, SettingsStore, llmConfigFrom, type SahkkuSettings } from "./ui/settings";
 
@@ -172,6 +173,9 @@ export function startSahkkuApp(doc: Document = document): SahkkuApp {
 
   const render = (view: MatchViewModel): void => {
     const playing = view.phase === "roll" || view.phase === "move";
+    const facingP2 = view.phase !== "setup" && controller.seats.length === 2 &&
+      view.dice.owner === PieceOwner.P2;
+    doc.documentElement.classList.toggle("is-facing-p2", facingP2);
     const startButton = byId("restart-button");
     startButton.textContent = i18n.t(
       view.phase === "setup" ? "menu.start" : playing ? "menu.restart" : "menu.newGame",
@@ -288,6 +292,9 @@ export function startSahkkuApp(doc: Document = document): SahkkuApp {
   });
 
   const helpModal = new HelpModal({ container: dialogRoot, translate: i18n.t });
+  const updateDisplayModeLabels = setupDisplayModes(
+    doc, byId("fullscreen-button"), byId("fill-window-button"), i18n.t,
+  );
 
   const modeSelect = selectById("mode-select");
   const bot1Select = selectById("bot1-select");
@@ -401,6 +408,7 @@ export function startSahkkuApp(doc: Document = document): SahkkuApp {
     doc.title = i18n.t("app.title");
 
     applyStaticTranslations(doc, i18n.t);
+    updateDisplayModeLabels();
     fillSelects();
     renderLegend(legend, doc, i18n.t);
     board.setTranslator(i18n.t);

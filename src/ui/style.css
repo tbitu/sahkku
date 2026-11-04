@@ -119,6 +119,219 @@ body {
   min-width: 0;
 }
 
+.view-controls {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.35rem;
+}
+
+.button.view-button {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+.view-exit,
+.view-controls [aria-pressed="true"] .view-enter {
+  display: none;
+}
+
+.view-controls [aria-pressed="true"] .view-exit {
+  display: inline;
+}
+
+.is-expanded .view-controls [aria-pressed="false"] {
+  display: none;
+}
+
+html.is-expanded,
+.is-expanded body {
+  height: 100%;
+  overflow: hidden;
+}
+
+.is-expanded .app {
+  height: 100dvh;
+  max-width: none;
+  overflow: auto;
+  padding: max(0.35rem, env(safe-area-inset-top)) max(0.35rem, env(safe-area-inset-right))
+    max(0.35rem, env(safe-area-inset-bottom)) max(0.35rem, env(safe-area-inset-left));
+  gap: 0;
+}
+
+.is-expanded .app-header,
+.is-expanded .match-setup,
+.is-expanded .app-footer,
+.is-expanded .legend,
+.is-expanded .row-label,
+.is-expanded .dice-hint,
+.is-expanded .panel--dice > .panel-title {
+  display: none;
+}
+
+.is-expanded .tabletop {
+  --compact-dice-width: 280px;
+  flex: 1;
+  gap: 0.35rem;
+  align-content: center;
+}
+
+.is-expanded .view-controls {
+  position: fixed;
+  top: max(0.35rem, env(safe-area-inset-top));
+  right: max(0.35rem, env(safe-area-inset-right));
+  z-index: 5;
+}
+
+.is-expanded .panel {
+  padding: 0.35rem;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: none;
+}
+
+.is-expanded .panel--dice {
+  position: static;
+  margin-top: 1rem;
+}
+
+.is-expanded .dice-actions {
+  height: 9rem;
+  overflow: auto;
+  flex-shrink: 0;
+}
+
+.is-expanded .dice-actions > *,
+.is-expanded .match-messages > * {
+  flex-shrink: 0;
+}
+
+.is-fullscreen.is-facing-p2 .panel--dice,
+.is-fullscreen.is-facing-p2 .match-messages {
+  transform: rotate(180deg);
+}
+
+.match-messages {
+  display: contents;
+}
+
+.is-expanded .match-messages {
+  position: fixed;
+  top: max(0.35rem, env(safe-area-inset-top));
+  left: max(0.35rem, env(safe-area-inset-left));
+  right: calc(44px + 0.7rem + env(safe-area-inset-right));
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  max-height: 30dvh;
+  overflow: auto;
+}
+
+.is-fullscreen.is-facing-p2 .match-messages {
+  top: auto;
+  bottom: max(0.35rem, env(safe-area-inset-bottom));
+}
+
+.is-expanded .board {
+  grid-template-columns: repeat(var(--board-columns, 15), minmax(0, 1fr));
+}
+
+@media (orientation: landscape) {
+  .is-expanded .tabletop {
+    grid-template-columns: minmax(0, 1fr) var(--compact-dice-width);
+  }
+
+  .is-fullscreen.is-facing-p2 .view-controls {
+    top: auto;
+    bottom: max(0.35rem, env(safe-area-inset-bottom));
+  }
+
+  .is-expanded .panel--board {
+    align-self: center;
+  }
+
+  .is-expanded .panel--dice {
+    --fullscreen-tray-height: min(8.5rem, 34dvh);
+    position: relative;
+    top: auto;
+    align-self: center;
+    margin-top: 0;
+  }
+
+  .is-expanded .dice-tray {
+    height: var(--fullscreen-tray-height);
+    min-height: 0;
+  }
+
+  .is-expanded .die {
+    flex-basis: 2.6rem;
+    max-width: 2.6rem;
+  }
+
+  .is-expanded .dice-actions {
+    position: absolute;
+    top: calc(100% + 0.35rem);
+    left: 0;
+    right: 0;
+    height: auto;
+    max-height: calc(50dvh - var(--fullscreen-tray-height) / 2 - 1rem);
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.35rem;
+  }
+
+  .is-expanded .dice-actions > p,
+  .is-expanded .dice-actions > [data-action="roll"] {
+    grid-column: 1 / -1;
+  }
+
+  .is-expanded .dice-actions .button {
+    min-height: 44px;
+    padding: 0.4rem 0.2rem;
+    font-size: 0.75rem;
+  }
+
+  .is-expanded .dice-actions .dice-feedback {
+    margin: 0;
+    font-size: 0.72rem;
+    line-height: 1.25;
+  }
+
+  .is-expanded .match-messages {
+    right: calc(var(--compact-dice-width) + 0.7rem + env(safe-area-inset-right));
+  }
+}
+
+@media (orientation: landscape) and (max-width: 900px) {
+  .is-expanded .tabletop {
+    --compact-dice-width: 170px;
+  }
+}
+
+@media (orientation: landscape) and (max-height: 360px) {
+  .is-expanded .die {
+    flex-basis: 1.8rem;
+    max-width: 1.8rem;
+  }
+
+  .is-expanded .match-messages {
+    max-height: 40dvh;
+  }
+
+  .is-expanded .match-messages .status-bar,
+  .is-expanded .match-messages .banner {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.8rem;
+  }
+}
+
 .panel-title {
   margin: 0 0 0.6rem;
   font-size: 0.9rem;

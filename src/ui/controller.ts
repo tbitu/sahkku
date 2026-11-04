@@ -295,6 +295,7 @@ export interface DiceViewState {
   rerollLabel: string;
   keepLabel: string;
   feedbackText: string | null;
+  owner: PieceOwner;
 }
 
 export interface GameOverView {
@@ -831,6 +832,7 @@ export class WebMatchController {
         rerollLabel: t("dice.reroll"),
         keepLabel: t("dice.keep"),
         feedbackText,
+        owner: feedback?.owner ?? current,
       },
       captures: { p1: state.p1Captures, p2: state.p2Captures },
       selectedPieceId: this.selected,
@@ -839,7 +841,9 @@ export class WebMatchController {
       lastMove: this.lastMove,
       winningMove: state.gameOver && this.lastMove != null ? { ...this.lastMove } : null,
       events: [...this.lastEvents],
-      eventMessages: this.lastEvents.map((event) => this.describeEvent(event)),
+      eventMessages: this.lastEvents
+        .filter((event) => event.kind !== RuleEventKind.PieceMoved)
+        .map((event) => this.describeEvent(event)),
       gameOver: state.gameOver
         ? {
             winner: state.winner,
@@ -892,8 +896,6 @@ export class WebMatchController {
     const who = t(ownerNameKey(event.owner));
 
     switch (event.kind) {
-      case RuleEventKind.PieceMoved:
-        return `${who} ${t("events.pieceMoved")}`;
       case RuleEventKind.SoldierCaptured:
         return `${who} ${t("events.soldierCaptured")}`;
       case RuleEventKind.KingRecruited:

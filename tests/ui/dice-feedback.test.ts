@@ -31,6 +31,7 @@ describe("unusable dice handover feedback", () => {
     controller.setDiceFeedbackDelay(delay);
     controller.roll();
     expect(controller.state.currentPlayer).toBe(PieceOwner.P2);
+    expect(controller.viewModel.dice.owner).toBe(PieceOwner.P1);
     expect(controller.viewModel.dice.feedbackText).toContain("all dice are blank");
     expect(controller.viewModel.dice.feedbackText).toContain("Turn passes to P2");
     expect(controller.viewModel.dice.dice.map(die => die.unusable)).toEqual([true, true, true]);
@@ -41,8 +42,10 @@ describe("unusable dice handover feedback", () => {
     expect(controller.canHumanAct).toBe(false);
     vi.advanceTimersByTime(delay - 1);
     expect(controller.showingDiceFeedback).toBe(true);
+    expect(controller.viewModel.dice.owner).toBe(PieceOwner.P1);
     vi.advanceTimersByTime(1);
     expect(controller.showingDiceFeedback).toBe(false);
+    expect(controller.viewModel.dice.owner).toBe(PieceOwner.P2);
     expect(controller.viewModel.dice.rolled).toBe(false);
     expect(controller.viewModel.dice.canRoll).toBe(true);
   });

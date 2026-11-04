@@ -657,6 +657,17 @@ describe("WebMatchController: rule events and game over", () => {
     expect(controller.viewModel.lastMove).toBeNull();
   });
 
+  it("keeps routine moves in events and highlights without announcing them", () => {
+    const { controller } = evenOddsController([DieFace.Three, DieFace.Three, DieFace.Three]);
+    expect(controller.roll()).toBe(true);
+    expect(controller.commitMove(controller.legalMoves[0]!)).toBe(true);
+    const view = controller.viewModel;
+    expect(view.events.some(event => event.kind === RuleEventKind.PieceMoved)).toBe(true);
+    expect(view.eventMessages).toEqual([]);
+    expect(view.lastMove).not.toBeNull();
+    expect(view.statusText).not.toBe("");
+  });
+
   it("reports the capture, the win and the modal payload when the last enemy soldier falls", () => {
     const engine = testEngine();
     // A huntsman three steps short of player two's only active soldier: the three captures it and
@@ -687,6 +698,7 @@ describe("WebMatchController: rule events and game over", () => {
     expect(view.gameOver!.reason).toBe(WinReason.OpponentSoldiersExhausted);
     expect(view.gameOver!.winnerLabel).toContain("P1");
     expect(view.eventMessages).toContain("P1 · Women captured a soldier");
+    expect(view.eventMessages).not.toContain("P1 · Women moved");
     expect(view.eventMessages.some((message) => message.includes("wins"))).toBe(true);
     expect(view.dice.canRoll).toBe(false);
     expect(view.dice.canReroll).toBe(false);

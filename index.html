@@ -98,6 +98,30 @@
       </section>
 
       <main class="tabletop">
+        <div class="view-controls">
+          <button
+            type="button"
+            class="button button--ghost view-button"
+            id="fill-window-button"
+            aria-pressed="false"
+            aria-label="Fill window"
+            title="Fill window"
+          >
+            <span class="view-enter" aria-hidden="true">&#x25AD;</span>
+            <span class="view-exit" aria-hidden="true">&#x2715;</span>
+          </button>
+          <button
+            type="button"
+            class="button button--ghost view-button"
+            id="fullscreen-button"
+            aria-pressed="false"
+            aria-label="Fullscreen"
+            title="Fullscreen"
+          >
+            <span class="view-enter" aria-hidden="true">&#x26F6;</span>
+            <span class="view-exit" aria-hidden="true">&#x2715;</span>
+          </button>
+        </div>
         <section
           class="panel panel--board"
           data-i18n-attr="aria-label=board.label"
@@ -110,8 +134,10 @@
             data-i18n-attr="aria-label=board.label"
             aria-label="Sáhkku board: three rows of fifteen carved cells"
           ></div>
-          <div class="status-bar" id="status-bar" role="status" aria-live="polite"></div>
-          <div class="banner" id="banner" role="log" aria-live="polite" hidden></div>
+          <div class="match-messages" id="match-messages">
+            <div class="status-bar" id="status-bar" role="status" aria-live="polite"></div>
+            <div class="banner" id="banner" role="log" aria-live="polite" hidden></div>
+          </div>
           <div
             class="legend"
             id="legend"
@@ -122,6 +148,7 @@
 
         <aside
           class="panel panel--dice"
+          id="dice-panel"
           data-i18n-attr="aria-label=dice.panelTitle"
           aria-label="Sáhkku dice"
         >

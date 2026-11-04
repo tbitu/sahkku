@@ -28,6 +28,11 @@ const BOARD_COLUMNS = 15;
 const BOARD_ROWS = 3;
 const DICE_COUNT = 3;
 
+const PORTRAIT_PHONE = { width: 390, height: 844 };
+const LANDSCAPE_PHONE = { width: 844, height: 390 };
+const SHORT_LANDSCAPE_PHONE = { width: 740, height: 320 };
+const DESKTOP = { width: 1280, height: 720 };
+
 /** Indices into the ruleset's `dice.faces` table (`sahhku`, `three`, `two`, `zero`). */
 const SAHKKU_FACE = 0;
 const THREE_FACE = 1;
@@ -128,6 +133,19 @@ async function openClient(page) {
   await page.goto('/');
   await expect(page.locator('#board .cell')).toHaveCount(BOARD_COLUMNS * BOARD_ROWS);
   await expect(statusBar(page)).not.toBeEmpty();
+}
+
+async function mockFullscreen(page, behavior = 'unavailable') {
+  await page.addInitScript((mode) => {
+    Object.defineProperty(Element.prototype, 'requestFullscreen', {
+      configurable: true,
+      value: mode === 'unavailable' ? undefined : () => {
+        const root = document.documentElement;
+        root.dataset.fullscreenRequests = String(Number(root.dataset.fullscreenRequests ?? '0') + 1);
+        return Promise.reject(new Error('Native fullscreen unavailable'));
+      },
+    });
+  }, behavior);
 }
 
 /** Configures and explicitly starts a match through the toolbar. */
@@ -274,6 +292,344 @@ for (const variant of ['standard', 'evenOdds']) {
     failures.expectClean();
   });
 }
+
+for (const viewport of [PORTRAIT_PHONE, LANDSCAPE_PHONE, DESKTOP]) {
+  test(`fullscreen: board-only fallback preserves play at ${viewport.width}px`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    await mockFullscreen(page);
+    await seedDice(page);
+    await page.goto('/');
+    await applySetup(page, { mode: 'hotseat_2p', starter: 'P1', speed: 'fast' });
+    const snapshot = () => page.locator('#board, #dice-tray, #dice-actions, #status-bar')
+      .evaluateAll(elements => elements.map(element => element.innerHTML));
+    const before = await snapshot();
+    const toggle = page.locator('#fullscreen-button');
+    await toggle.click();
+    expect(await page.evaluate(() => document.fullscreenElement)).toBeNull();
+    await expect(toggle).toHaveAttribute('aria-label', 'Exit fullscreen');
+    await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('.view-controls button:visible')).toHaveCount(1);
+    await expect(page.locator('#fill-window-button')).toBeHidden();
+    await expect(page.locator('.view-controls')).toHaveCSS('position', 'fixed');
+    const exitBounds = await page.locator('.view-controls').boundingBox();
+    expect(exitBounds.width).toBe(44);
+    expect(exitBounds.height).toBe(44);
+    for (const selector of ['.app-header', '#match-setup', '#restart-button', '#legend', '.dice-hint', '.app-footer']) {
+      await expect(page.locator(selector)).toBeHidden();
+    }
+    for (const selector of ['#board', '#dice-tray', '#dice-actions', '#status-bar', '#fullscreen-button']) {
+      await expect(page.locator(selector)).toBeInViewport({ ratio: 1 });
+    }
+    expect(await snapshot()).toEqual(before);
+    await expect(page.locator('#board .cell')).toHaveCount(BOARD_COLUMNS * BOARD_ROWS);
+    await toggle.click();
+    await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+    await expect(page.locator('#restart-button')).toBeVisible();
+    expect(await snapshot()).toEqual(before);
+    await toggle.click();
+    await planDice(page, PLAY_PLAN);
+    await rollDice(page);
+    const afterRoll = await snapshot();
+    await page.keyboard.press('Escape');
+    await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+    expect(await snapshot()).toEqual(afterRoll);
+  });
+}
+
+for (const viewport of [PORTRAIT_PHONE, LANDSCAPE_PHONE, DESKTOP]) {
+  test(`fill window: stays upright without native fullscreen at ${viewport.width}px`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    await mockFullscreen(page, 'denied');
+    await seedDice(page);
+    await openClient(page);
+    await applySetup(page, { mode: 'hotseat_2p', starter: 'P2', speed: 'fast' });
+    const fill = page.locator('#fill-window-button');
+    const fullscreen = page.locator('#fullscreen-button');
+    await fill.click();
+    await expect(fill).toHaveAttribute('aria-label', 'Exit fill window');
+    await expect(fill).toHaveAttribute('aria-pressed', 'true');
+    await expect(fullscreen).toHaveAttribute('aria-pressed', 'false');
+    await expect(fullscreen).toBeHidden();
+    await expect(page.locator('.view-controls button:visible')).toHaveCount(1);
+    await expect(page.locator('html')).not.toHaveAttribute('data-fullscreen-requests');
+    await expect(page.locator('#match-setup')).toBeHidden();
+    await expect(page.locator('#dice-panel')).toHaveCSS('transform', 'none');
+    await expect(page.locator('#match-messages')).toHaveCSS('transform', 'none');
+    await planDice(page, PLAY_PLAN);
+    await playTurn(page, MEN, '.piece--p2');
+    await expect(statusBar(page)).toContainText(WOMEN);
+    await expect(page.locator('#dice-panel')).toHaveCSS('transform', 'none');
+    await playTurn(page, WOMEN, '.piece--p1');
+    await expect(statusBar(page)).toContainText(MEN);
+    await expect(page.locator('#dice-panel')).toHaveCSS('transform', 'none');
+    await fill.click();
+    await expect(page.locator('.view-controls button:visible')).toHaveCount(2);
+    await expect(page.locator('#match-setup')).toBeVisible();
+    await fullscreen.click();
+    await expect(fill).toHaveAttribute('aria-pressed', 'false');
+    await expect(fullscreen).toHaveAttribute('aria-pressed', 'true');
+    await expect(fill).toBeHidden();
+    await expect(page.locator('.view-controls button:visible')).toHaveCount(1);
+    await expect(page.locator('html')).toHaveAttribute('data-fullscreen-requests', '1');
+    await expect(page.locator('#dice-panel')).toHaveCSS('transform', 'matrix(-1, 0, 0, -1, 0, 0)');
+    await fullscreen.click();
+    await expect(page.locator('.view-controls button:visible')).toHaveCount(2);
+    await fill.click();
+    await expect(page.locator('#dice-panel')).toHaveCSS('transform', 'none');
+    await expect(page.locator('#match-setup')).toBeHidden();
+    await page.keyboard.press('Escape');
+    await expect(fill).toHaveAttribute('aria-pressed', 'false');
+    await expect(page.locator('#match-setup')).toBeVisible();
+    await expect(statusBar(page)).toContainText(MEN);
+  });
+}
+
+for (const viewport of [PORTRAIT_PHONE, LANDSCAPE_PHONE]) {
+  test(`fullscreen: hotseat dice face the active player at ${viewport.width}px`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    await mockFullscreen(page);
+    await seedDice(page);
+    await openClient(page);
+    await applySetup(page, { mode: 'hotseat_2p', starter: 'P2', speed: 'fast' });
+    await planDice(page, PLAY_PLAN);
+    const panel = page.locator('#dice-panel');
+    const messages = page.locator('#match-messages');
+    const board = page.locator('#board');
+    const toggle = page.locator('#fullscreen-button');
+    await expect(panel).toHaveCSS('transform', 'none');
+    await expect(messages).toHaveCSS('transform', 'none');
+    await toggle.click();
+    await expect(panel).toHaveCSS('transform', 'matrix(-1, 0, 0, -1, 0, 0)');
+    await expect(messages).toHaveCSS('position', 'fixed');
+    await expect(messages).toHaveCSS('transform', 'matrix(-1, 0, 0, -1, 0, 0)');
+    await expect(board).toHaveCSS('transform', 'none');
+    await expect(rollButton(page)).toBeInViewport({ ratio: 1 });
+    await expect(messages).toBeInViewport({ ratio: 1 });
+    await playTurn(page, MEN, '.piece--p2');
+    await expect(statusBar(page)).toContainText(WOMEN);
+    await expect(panel).toHaveCSS('transform', 'none');
+    await expect(messages).toHaveCSS('transform', 'none');
+    await expect(board).toHaveCSS('transform', 'none');
+    await playTurn(page, WOMEN, '.piece--p1');
+    await expect(statusBar(page)).toContainText(MEN);
+    await expect(panel).toHaveCSS('transform', 'matrix(-1, 0, 0, -1, 0, 0)');
+    await expect(messages).toHaveCSS('transform', 'matrix(-1, 0, 0, -1, 0, 0)');
+    await toggle.click();
+    await expect(panel).toHaveCSS('transform', 'none');
+    await expect(messages).toHaveCSS('transform', 'none');
+    await page.selectOption('#mode-select', 'human_vs_bot');
+    await toggle.click();
+    await expect(panel).toHaveCSS('transform', 'matrix(-1, 0, 0, -1, 0, 0)');
+    await expect(board).toHaveCSS('transform', 'none');
+  });
+}
+
+for (const viewport of [PORTRAIT_PHONE, LANDSCAPE_PHONE, SHORT_LANDSCAPE_PHONE]) {
+  for (const faces of [[ZERO_FACE], [THREE_FACE, ZERO_FACE, ZERO_FACE]]) {
+    test(`fullscreen: feedback keeps its owner and board position at ${viewport.width}px with ${faces[0]}`, async ({ page }) => {
+      await page.setViewportSize(viewport);
+      await mockFullscreen(page);
+      await seedDice(page);
+      await openClient(page);
+      await applySetup(page, { mode: 'hotseat_2p', starter: 'P1', speed: 'normal' });
+      await page.locator('#fullscreen-button').click();
+      await page.clock.install();
+      await page.clock.pauseAt(new Date(Date.now() + 1000));
+      const board = page.locator('#board');
+      const boardBefore = await board.boundingBox();
+      if (viewport.width > viewport.height) {
+        expect(Math.abs(boardBefore.y + boardBefore.height / 2 - viewport.height / 2)).toBeLessThan(1);
+      }
+      const panel = page.locator('#dice-panel');
+      const messages = page.locator('#match-messages');
+      const tray = page.locator('#dice-tray');
+      const expectCenteredDice = async () => {
+        if (viewport.width <= viewport.height) return;
+        const bounds = await tray.boundingBox();
+        expect(Math.abs(bounds.y + bounds.height / 2 - viewport.height / 2)).toBeLessThan(1);
+      };
+      await expectCenteredDice();
+      for (const [owner, pieceClass, orientation, nextOrientation] of [
+        [WOMEN, '.piece--p1', 'none', 'matrix(-1, 0, 0, -1, 0, 0)'],
+        [MEN, '.piece--p2', 'matrix(-1, 0, 0, -1, 0, 0)', 'none'],
+      ]) {
+        await planDice(page, faces);
+        await expect(panel).toHaveCSS('transform', orientation);
+        await expect(messages).toHaveCSS('transform', orientation);
+        await expect(rollButton(page)).toBeInViewport({ ratio: 1 });
+        if (viewport.width > viewport.height) {
+          const rollBounds = await rollButton(page).boundingBox();
+          const trayBounds = await tray.boundingBox();
+          const messageBounds = await messages.boundingBox();
+          const exitBounds = await page.locator('#fullscreen-button').boundingBox();
+          expect(
+            exitBounds.y + exitBounds.height <= rollBounds.y ||
+            rollBounds.y + rollBounds.height <= exitBounds.y,
+          ).toBe(true);
+          if (owner === WOMEN) {
+            expect(rollBounds.y).toBeGreaterThanOrEqual(trayBounds.y + trayBounds.height);
+            expect(messageBounds.y + messageBounds.height).toBeLessThanOrEqual(boardBefore.y);
+          } else {
+            expect(rollBounds.y + rollBounds.height).toBeLessThanOrEqual(trayBounds.y);
+            expect(messageBounds.y).toBeGreaterThanOrEqual(boardBefore.y + boardBefore.height);
+          }
+          expect(messageBounds.x + messageBounds.width).toBeLessThanOrEqual(rollBounds.x);
+        }
+        await rollButton(page).click();
+        expect(await board.boundingBox()).toEqual(boardBefore);
+        await expectCenteredDice();
+        if (faces[0] !== ZERO_FACE) await moveFirstLegalPiece(page, pieceClass);
+        await expect(page.locator('.dice-feedback')).toBeVisible();
+        await expect(statusBar(page)).toContainText(`${owner}:`);
+        await expect(panel).toHaveCSS('transform', orientation);
+        await expect(messages).toHaveCSS('transform', orientation);
+        expect(await board.boundingBox()).toEqual(boardBefore);
+        await expectCenteredDice();
+        const exitBounds = await page.locator('#fullscreen-button').boundingBox();
+        const panelBounds = await panel.boundingBox();
+        if (viewport.width > viewport.height && owner === MEN) {
+          expect(exitBounds.y).toBeGreaterThanOrEqual(panelBounds.y + panelBounds.height);
+        } else {
+          expect(exitBounds.y + exitBounds.height).toBeLessThanOrEqual(panelBounds.y);
+        }
+        await expect(messages).toBeInViewport({ ratio: 1 });
+        expect(await messages.evaluate(element => element.scrollHeight <= element.clientHeight)).toBe(true);
+        if (viewport.width > viewport.height) {
+          const messageBounds = await messages.boundingBox();
+          if (owner === WOMEN) {
+            expect(messageBounds.y + messageBounds.height).toBeLessThanOrEqual(boardBefore.y);
+          } else {
+            expect(messageBounds.y).toBeGreaterThanOrEqual(boardBefore.y + boardBefore.height);
+          }
+          expect(messageBounds.x + messageBounds.width).toBeLessThanOrEqual(panelBounds.x);
+        }
+        await page.clock.runFor(1599);
+        await expect(panel).toHaveCSS('transform', orientation);
+        await expect(messages).toHaveCSS('transform', orientation);
+        await page.clock.runFor(1);
+        await expect(page.locator('.dice-feedback')).toHaveCount(0);
+        await expect(panel).toHaveCSS('transform', nextOrientation);
+        await expect(messages).toHaveCSS('transform', nextOrientation);
+        expect(await board.boundingBox()).toEqual(boardBefore);
+        await expectCenteredDice();
+      }
+    });
+  }
+}
+
+for (const viewport of [LANDSCAPE_PHONE, SHORT_LANDSCAPE_PHONE]) {
+  test(`fullscreen: centered dice keep both reroll controls visible at ${viewport.width}px`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    await seedDice(page);
+    await openClient(page);
+    await applySetup(page, { mode: 'hotseat_2p', starter: 'P2', speed: 'fast' });
+    await page.locator('#fullscreen-button').click();
+    await planDice(page, [SAHKKU_FACE]);
+    const tray = page.locator('#dice-tray');
+    const before = await tray.boundingBox();
+    await rollDice(page);
+    const actions = page.locator('#dice-actions');
+    const reroll = actions.locator('[data-action="reroll"]');
+    const keep = actions.locator('[data-action="keep"]');
+    await expect(reroll).toBeInViewport({ ratio: 1 });
+    await expect(keep).toBeInViewport({ ratio: 1 });
+    expect(await actions.evaluate(element => element.scrollHeight <= element.clientHeight)).toBe(true);
+    expect(await tray.boundingBox()).toEqual(before);
+    await keep.click();
+    await expect(keep).toHaveCount(0);
+    expect(await tray.boundingBox()).toEqual(before);
+  });
+}
+
+for (const mode of ['human_vs_bot', 'bot_vs_bot']) {
+  test(`fullscreen: dice stay upright for ${mode}`, async ({ page }) => {
+    await seedDice(page);
+    await openClient(page);
+    await applySetup(page, { mode, starter: 'P2', speed: 'kajsa' });
+    await page.locator('#fullscreen-button').click();
+    await expect(statusBar(page)).toContainText(MEN);
+    await expect(page.locator('#dice-panel')).toHaveCSS('transform', 'none');
+  });
+}
+
+test('fill window: exit native fullscreen before choosing window mode', async ({ page }) => {
+  await seedDice(page);
+  await openClient(page);
+  await applySetup(page, { mode: 'hotseat_2p', starter: 'P2', speed: 'fast' });
+  const fullscreen = page.locator('#fullscreen-button');
+  const fill = page.locator('#fill-window-button');
+  await fullscreen.click();
+  await expect.poll(() => page.evaluate(() => document.fullscreenElement === document.documentElement)).toBe(true);
+  await expect(fill).toBeHidden();
+  await fullscreen.click();
+  await expect.poll(() => page.evaluate(() => document.fullscreenElement)).toBeNull();
+  await expect(page.locator('.view-controls button:visible')).toHaveCount(2);
+  await fill.click();
+  await expect(fill).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#match-setup')).toBeHidden();
+  await expect(page.locator('#dice-panel')).toHaveCSS('transform', 'none');
+  await expect(page.locator('#match-messages')).toHaveCSS('transform', 'none');
+  await expect(fullscreen).toBeHidden();
+  await fill.click();
+  await fullscreen.click();
+  await expect.poll(() => page.evaluate(() => document.fullscreenElement === document.documentElement)).toBe(true);
+  await expect(page.locator('#dice-panel')).toHaveCSS('transform', 'matrix(-1, 0, 0, -1, 0, 0)');
+  await page.evaluate(() => document.exitFullscreen());
+  await expect(page.locator('#match-setup')).toBeVisible();
+  await expect(statusBar(page)).toContainText(MEN);
+});
+
+test('fullscreen: an exited pending request cannot reopen the expanded view', async ({ page }) => {
+  await page.addInitScript(() => {
+    let fullscreenElement = null;
+    Object.defineProperty(Document.prototype, 'fullscreenElement', { get: () => fullscreenElement });
+    Element.prototype.requestFullscreen = function () {
+      return new Promise(resolve => {
+        document.addEventListener('finish-fullscreen', () => {
+          fullscreenElement = this;
+          document.dispatchEvent(new Event('fullscreenchange'));
+          resolve();
+        }, { once: true });
+      });
+    };
+    Document.prototype.exitFullscreen = () => {
+      fullscreenElement = null;
+      document.dispatchEvent(new Event('fullscreenchange'));
+      return Promise.resolve();
+    };
+  });
+  await openClient(page);
+  const toggle = page.locator('#fullscreen-button');
+  await toggle.click();
+  await toggle.click();
+  await page.evaluate(() => document.dispatchEvent(new Event('finish-fullscreen')));
+  await expect.poll(() => page.evaluate(() => document.fullscreenElement)).toBeNull();
+  await expect(page.locator('#match-setup')).toBeVisible();
+  await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+});
+
+test('fullscreen: native entry and browser exit restore the controls', async ({ page }) => {
+  await page.goto('/');
+  const toggle = page.locator('#fullscreen-button');
+  await toggle.click();
+  await expect.poll(() => page.evaluate(() => document.fullscreenElement === document.documentElement)).toBe(true);
+  await expect(page.locator('#match-setup')).toBeHidden();
+  await page.evaluate(() => document.exitFullscreen());
+  await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.locator('#match-setup')).toBeVisible();
+});
+
+test('fullscreen: a refused native request keeps the board-only view usable', async ({ page }) => {
+  await mockFullscreen(page, 'denied');
+  await page.goto('/');
+  const toggle = page.locator('#fullscreen-button');
+  await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('html')).toHaveAttribute('data-fullscreen-requests', '1');
+  await expect(page.locator('#match-setup')).toBeHidden();
+  await toggle.click();
+  await expect(page.locator('#match-setup')).toBeVisible();
+});
 
 test('cold launch: the board renders and the console stays clean', async ({ page }) => {
   const failures = watchForFailures(page);
@@ -551,12 +907,11 @@ test('hotseat: selecting a piece highlights its destinations and a move advances
   await destinations.first().click();
 
   // The move landed: the piece left its old cell for the highlighted one and none was lost on the way
-  // — and the client reported the action it just committed.
+  // without a redundant move announcement.
   await expect(piecesIn(page, from)).toHaveCount(fromBefore - 1);
   await expect(piecesIn(page, to)).not.toHaveCount(0);
   await expect(page.locator('#board .piece--p1')).toHaveCount(womenBefore);
-  await expect(banner(page)).toBeVisible();
-  await expect(banner(page)).toContainText(WOMEN);
+  await expect(banner(page)).toBeHidden();
   expect(await boardBounds()).toEqual(boardBefore);
   await page.clock.install();
   await page.clock.fastForward(10000);
@@ -806,10 +1161,10 @@ test('a bot seat answers the human move and hands the turn back', async ({ page 
   await expect(statusBar(page)).toHaveAttribute('data-phase', 'roll');
   await expect(rollButton(page)).toBeVisible();
 
-  // It answered with a real move rather than passing, and the client reported it.
+  // It answered with a real move rather than passing.
   const afterBot = await boardSignature(page);
   expect(afterBot, 'the bot did not change the position').not.toEqual(beforeBot);
-  await expect(banner(page)).toContainText(MEN);
+  await expect(banner(page)).not.toContainText(' moved');
   failures.expectClean();
 });
 

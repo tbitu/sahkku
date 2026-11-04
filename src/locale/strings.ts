@@ -62,6 +62,10 @@ const englishStrings = {
       "Sáhkku is a traditional game of the Sámi people. Rules engine, agents and this 2D client are open source.",
   },
   menu: {
+    fullscreen: "Fullscreen",
+    exitFullscreen: "Exit fullscreen",
+    fillWindow: "Fill window",
+    exitFillWindow: "Exit fill window",
     start: "Start game",
     restart: "Restart game…",
     newGame: "New game",
@@ -138,7 +142,6 @@ const englishStrings = {
     matchOver: "The match is over.",
   },
   events: {
-    pieceMoved: "moved",
     soldierCaptured: "captured a soldier",
     kingRecruited: "recruited the king",
     queenCaptured: "captured the queen",
@@ -310,6 +313,10 @@ const northSamiStrings: StringTable = {
       "Sáhkku lea sámi álbmoga árbevirolaš speallu. Njuolggadusmotora, agenttat ja dán 2D-klienta leat rabas gáldokoda.",
   },
   menu: {
+    fullscreen: "Dievas šearbma",
+    exitFullscreen: "Guođe dievas šearpma",
+    fillWindow: "Deavdde láse",
+    exitFillWindow: "Guođe deavdduhuvvon láse",
     start: "Álggat spealu",
     restart: "Álggat spealu ođđasit…",
     newGame: "Ođđa speallu",
@@ -386,7 +393,6 @@ const northSamiStrings: StringTable = {
     matchOver: "Speallu lea loahpahuvvon.",
   },
   events: {
-    pieceMoved: "sirddii",
     soldierCaptured: "gávnnai sotnjeha",
     kingRecruited: "vurkii gonagasa",
     queenCaptured: "gávnnai dronninga",
@@ -546,6 +552,10 @@ const norwegianStrings: StringTable = {
       "Sáhkku er et tradisjonelt spill for det samiske folket. Regelmotoren, agentene og denne 2D-klienten er åpen kildekode.",
   },
   menu: {
+    fullscreen: "Fullskjerm",
+    exitFullscreen: "Avslutt fullskjerm",
+    fillWindow: "Fyll vinduet",
+    exitFillWindow: "Avslutt fyll vinduet",
     start: "Start spill",
     restart: "Start på nytt…",
     newGame: "Nytt spill",
@@ -622,7 +632,6 @@ const norwegianStrings: StringTable = {
     matchOver: "Kampen er over.",
   },
   events: {
-    pieceMoved: "flyttet",
     soldierCaptured: "fanget en soldat",
     kingRecruited: "vervet kongen",
     queenCaptured: "fanget dronningen",
