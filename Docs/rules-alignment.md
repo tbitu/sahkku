@@ -10,8 +10,8 @@ fixed).
 
 | Source | Role |
 | --- | --- |
-| `SahkkuRules.pdf` | The player-facing rules, "Lágesvuon sáhkku with Unjárga king (Vuonnamárkan style)". It shipped with the retired C#/Unity client and is no longer in this repository; what it said is what the ruleset before you encodes. |
-| `SahkkuRegler.pdf` | The same rules in Norwegian, retired with the same client. |
+| [SahkkuRules.pdf](SahkkuRules.pdf) | The original English player-facing rules, "Lágesvuon sáhkku with Unjárga king (Vuonnamárkan style)". Restored unchanged from the retired C#/Unity client. |
+| [SahkkuRegler.pdf](SahkkuRegler.pdf) | The original Norwegian rules, restored unchanged from the same client. |
 | [Reaidu / UiT, "Sáhkku"](https://result.uit.no/reaidu/ressurser/aktiviteter/sahkku/) | The reference collection the PDFs link to, by Mikkel Berg-Nordlie. Contains the Lágesvuon chapter, the Unjárga (Vuonnamárkan) king rule, the "like odds" extra rule, and the movement diagram. |
 | [Wikipedia: Sáhkku](https://en.wikipedia.org/wiki/S%C3%A1hkku) | The other link in the PDF. Contains the Lágesvuotna chapter and the `Sakkhu path norm.svg` track diagram. |
 | [itch.io: Digital Sáhkku](https://zhamul.itch.io/digital-shkku) | The game's own page: confirms the ruleset is the Lágesvuon sáhkku with Unjárga king, "Vuonnamárkan málle", the rules used at the Sáhkku world cup. |
