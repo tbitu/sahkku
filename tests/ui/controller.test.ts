@@ -196,7 +196,7 @@ describe("board geometry (derived from the ruleset, never hardcoded)", () => {
       return (geometry.decorations.get(place) ?? []).map((carving) => carving.kind);
     };
 
-    // The sacred seated pieces carry their own carving...
+    // The king and queens' starting cells carry their own carving...
     expect(carvingKinds(rules.setup.king.x, rules.setup.king.row)).toContain("king");
     expect(carvingKinds(rules.setup.queens.P1.x, rules.setup.queens.P1.row)).toContain("queen");
     expect(carvingKinds(rules.setup.queens.P2.x, rules.setup.queens.P2.row)).toContain("queen");

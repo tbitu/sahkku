@@ -61,7 +61,7 @@ Completely refactor the Digital Sáhkku project by replacing the entire C# codeb
    - `npm run bench -- --games 20 --p1 heuristic --p2 random` executes simulated matches headlessly without browser or graphics, reporting win rates, turn counts, and captures with zero illegal move violations.
 3. **Open-License 2D Frontend Quality**:
    - Zero proprietary engine dependencies (no Unity, no closed-source libraries, no commercial 3D assets). The tech stack is 100% open-source (MIT/Apache-2.0/CC-BY-NC-SA 4.0 compliant).
-   - Clean top-down 2D board with clear visual distinction between rows, sacred carved cells, active pieces, inactive home-row pieces, and piece stacks.
+   - Clean top-down 2D board with clear visual distinction between rows, carved cells, active pieces, inactive home-row pieces, and piece stacks.
    - Responsive layout functioning seamlessly on desktop and mobile web browsers without WebGL/WebAssembly startup delays or memory bloat.
 4. **Gameplay & Interaction Completeness**:
    - Interactive piece selection highlights all legal destination cells computed by the rules engine.
