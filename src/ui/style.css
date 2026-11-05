@@ -540,7 +540,7 @@ html.is-expanded,
   .cell.is-winning-to { animation: none; }
 }
 
-/* Carved ornamentation: an X cut into the wood of the sacred cells. */
+/* Carved X markings on the king's and queens' starting cells and the track turns. */
 .carving-layer {
   position: absolute;
   inset: 0;

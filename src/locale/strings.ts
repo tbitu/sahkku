@@ -196,9 +196,9 @@ const englishStrings = {
       middle: "Shared middle row",
     },
     carving: {
-      king: "Sacred king cell",
-      queenP1: "Sacred P1 queen cell",
-      queenP2: "Sacred P2 queen cell",
+      king: "King's starting cell",
+      queenP1: "P1 queen's starting cell",
+      queenP2: "P2 queen's starting cell",
       turning: "Track turning",
     },
     cell: {
@@ -219,7 +219,7 @@ const englishStrings = {
     queenP2: "P2 queen",
     king: "King (neutral, recruitable)",
     seated: "Seated in the home row",
-    carving: "Sacred carved cell",
+    carving: "Carved cell",
   },
   gameOver: {
     label: "Game over",
@@ -265,7 +265,7 @@ const englishStrings = {
     },
     board: {
       title: "The board and the track",
-      body: "The board is three rows of fifteen carved cells. The two outer rows are the home rows and the row between them is shared. Soldiers follow a continuous figure-of-eight track: along their home row, back along the middle row, along the opponent's home row, back along the middle row again, then onto their home row to repeat the lap. Reaching the end of the opponent's row does not end movement: the next step turns onto the middle row. The middle row is visited twice per lap (the diagram separates the two passes for clarity). The other player follows the mirrored route. The cells cut with an X are sacred.",
+      body: "The board is three rows of fifteen carved cells. The two outer rows are the home rows and the row between them is shared. Soldiers follow a continuous figure-of-eight track: along their home row, back along the middle row, along the opponent's home row, back along the middle row again, then onto their home row to repeat the lap. Reaching the end of the opponent's row does not end movement: the next step turns onto the middle row. The middle row is visited twice per lap (the diagram separates the two passes for clarity). The other player follows the mirrored route. X carvings mark the king's and queens' starting cells and the track turns.",
     },
     start: {
       title: "Who starts",
@@ -277,7 +277,7 @@ const englishStrings = {
     },
     pieces: {
       title: "The pieces",
-      body: "Player one fields the Women (nisu) and player two the Men (almmái); each side also has a queen. The King (gonagas) stands neutral on his sacred cell until a soldier reaches the opponent's home row and recruits him to that side.",
+      body: "Player one fields the Women (nisu) and player two the Men (almmái); each side also has a queen. The King (gonagas) starts neutral in the centre of the board until a soldier reaches the opponent's home row and recruits him to that side.",
     },
     activation: {
       title: "The activation queue",

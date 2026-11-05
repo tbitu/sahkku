@@ -36,7 +36,7 @@ archive_group: 2026-09-29-sahkku-ts-refactor-and-2d-frontend
 
 ### Problem Summary
 The legacy presentation layer depends on Unity 6 WebGL with 3D mesh models, materials, and heavy WebAssembly runtime. Per project requirements, this must be completely replaced with an open-license, dependency-light, non-3D 2D web client built with Vite, HTML5 Canvas/SVG, and CSS:
-1. **2D Board Tabletop**: A 15x3 grid representing the traditional carved wooden Sáhkku board, with clear distinctions between Player 1 home row, middle shared row, and Player 2 home row, plus sacred ornamentation marks (X) on special cells.
+1. **2D Board Tabletop**: A 15x3 grid representing the traditional carved wooden Sáhkku board, with clear distinctions between Player 1 home row, middle shared row, and Player 2 home row, plus X carvings on special cells.
 2. **2D Pieces & Stacking**: Visual representation of Women (P1 soldiers), Men (P2 soldiers), Queens, and the central neutral/recruited King. Clean differentiation between inactive (home-row seated) and active pieces, plus badge/stack count indicators when pieces share a cell.
 3. **2D Sáhkku Dice Roller**: Three elongated 4-sided Sáhkku dice (birccu) rendered in 2D with traditional face markings (Sáhkku `X`, `III`, `II`, `blank`), rolling animation, spending order progression indicator, and optional reroll decision buttons (`Reroll` vs `Keep & Move`).
 4. **Interactive Match Controller**: Connects the pure `RulesEngine` to user clicks: highlighting selectable pieces for the active player, highlighting legal destination cells on piece selection, committing moves via `RulesEngine.applyMove`, handling rule events (captures, king recruitment), and displaying turn banners and game-over modals.
@@ -70,7 +70,7 @@ The legacy presentation layer depends on Unity 6 WebGL with 3D mesh models, mate
     - Row 0: P1 (Women) home row.
     - Row 1: Middle row (shared battleground traversed twice in figure-of-8 track).
     - Row 2: P2 (Men) home row.
-  - Carved ornamentation: Render traditional decorative line borders and sacred "X" carvings on special cells (x=7 y=1 for King start, x=11 y=1 for P1 Queen, x=3 y=1 for P2 Queen, and end-column turnings).
+  - Carved ornamentation: Render traditional decorative line borders and "X" carvings on special cells (x=7 y=1 for King start, x=11 y=1 for P1 Queen, x=3 y=1 for P2 Queen, and end-column turnings).
   - Coordinate system aligns 1:1 with `RulesEngine` place indices `(y * 15 + x)`.
 - **REQ_PIECE_TOKENS**: In `src/ui/pieces.ts`:
   - 2D SVG / CSS tokens representing:
