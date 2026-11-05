@@ -81,6 +81,7 @@ describe("PlayerAgentTests", () => {
     const engine = testEngine();
     const board = new Board(engine);
     board.add(0, PieceType.Soldier, PieceOwner.P1, false, true);
+    board.add(5, PieceType.Soldier, PieceOwner.P1, true);
     board.setDice(DieFace.Sahhku, DieFace.Zero, DieFace.Zero);
     board.phase(TurnPhase.P1move);
 

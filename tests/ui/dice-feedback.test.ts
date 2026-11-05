@@ -115,10 +115,24 @@ describe("unusable dice handover feedback", () => {
     const board = new Board(testEngine());
     board.add(14, PieceType.Soldier, PieceOwner.P1);
     board.add(30, PieceType.Soldier, PieceOwner.P2);
+    board.add(5, PieceType.Soldier, PieceOwner.P1, true);
+    board.add(6, PieceType.Soldier, PieceOwner.P2);
     const { controller } = match([DieFace.Sahhku, DieFace.Three, DieFace.Zero], false, board.state);
     controller.roll();
     expect(controller.viewModel.dice.canReroll).toBe(true);
     controller.decideReroll(RerollDecision.KeepDiceAndProceed);
+    expect(controller.viewModel.dice.feedbackText).toContain("no legal moves");
+  });
+
+  it("hands over without offering a reroll when no active piece or legal activation exists", () => {
+    vi.useFakeTimers();
+    const board = new Board(testEngine());
+    board.add(14, PieceType.Soldier, PieceOwner.P1);
+    board.add(30, PieceType.Soldier, PieceOwner.P2);
+    const { controller } = match([DieFace.Sahhku, DieFace.Three, DieFace.Zero], false, board.state);
+    controller.roll();
+    expect(controller.viewModel.dice.canReroll).toBe(false);
+    expect(controller.state.currentPlayer).toBe(PieceOwner.P2);
     expect(controller.viewModel.dice.feedbackText).toContain("no legal moves");
   });
 

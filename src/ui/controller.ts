@@ -657,7 +657,7 @@ export class WebMatchController {
     this.selected = null;
     this.lastEvents = [];
 
-    // A sáhkku on the table opens the optional re-throw; anything else goes straight to the moves.
+    // Offer a re-throw only when the engine permits it; otherwise proceed directly to moves.
     if (!this.engine.canReroll(this.game)) this.beginMovePhase();
     this.showUnusableDice(owner, 0);
 

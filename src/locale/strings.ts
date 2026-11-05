@@ -273,7 +273,7 @@ const englishStrings = {
     },
     dice: {
       title: "The dice (birccu)",
-      body: "Three four-sided dice are thrown each turn. X (sáhkku) is one step and also wakes a sleeping soldier; III is three steps, II two steps and the blank side nothing at all. The dice must be spent in the order the ruleset declares, and a sáhkku may be thrown again before any die has been spent.",
+      body: "Three four-sided dice are thrown each turn. X (sáhkku) is one step and also wakes a sleeping piece; III is three steps, II two steps and the blank side nothing at all. The dice must be spent in the order the ruleset declares. A sáhkku may be thrown again before any die has been spent only if you have an active piece. If none of your pieces are active, you must use a sáhkku to activate a piece.",
     },
     pieces: {
       title: "The pieces",
@@ -528,7 +528,7 @@ const northSamiStrings: StringTable = {
     },
     dice: {
       title: "Birccut",
-      body: "Golbma njealljesierat birccu bálkkejuvvojit juohke vuorus. X (sáhkku) lea okta lávki ja heruhta nađe sotnjeha; III lea golbma lávki, II guokte lávki ja guoros sierra ii masa ge. Birccut geavahuvvojit dan ortnegis, mon njuolggadusat mearridit, ja sáhkku sáhttá bálkkejuvvot ođđasit ovdal go oktage birccu lea geavahuvvon.",
+      body: "Golbma njealljesierat birccu bálkkejuvvojit juohke vuorus. X (sáhkku) lea okta lávki ja heruhta nađe sotnjeha; III lea golbma lávki, II guokte lávki ja guoros sierra ii masa ge. Birccut geavahuvvojit dan ortnegis, mon njuolggadusat mearridit. Sáhkku sáhttá bálkkejuvvot ođđasit ovdal go oktage birccu lea geavahuvvon dušše jos dus lea aktiivvalaš bihttá. Jos oktage du bihttáin ii leat aktiivvalaš, fertet geavahit sáhkku aktiveret bihtá.",
     },
     pieces: {
       title: "Bierggut",
@@ -771,7 +771,7 @@ const norwegianStrings: StringTable = {
     },
     dice: {
       title: "Terningene (birccu)",
-      body: "Tre firekantede terninger kastes hver tur. X (sáhkku) er ett steg og vekker dessuten en sovende soldat; III er tre steg, II to steg og den blanke siden ingenting. Terningene må brukes i den rekkefølgen reglene bestemmer, og en sáhkku kan kastes på nytt før noen terning er brukt.",
+      body: "Tre firekantede terninger kastes hver tur. X (sáhkku) er ett steg og vekker dessuten en sovende brikke; III er tre steg, II to steg og den blanke siden ingenting. Terningene må brukes i den rekkefølgen reglene bestemmer. En sáhkku kan kastes på nytt før noen terning er brukt bare hvis du har en aktiv brikke. Hvis ingen av brikkene dine er aktive, må du bruke en sáhkku til å aktivere en brikke.",
     },
     pieces: {
       title: "Brikkene",

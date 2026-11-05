@@ -1,13 +1,12 @@
 /**
- * Core data model of the Sáhkku rules engine — the 1:1 port of the retired C# domain model.
+ * Core data model of the Sáhkku rules engine.
  *
  * Nothing in here depends on a host, a renderer or a random source, so the very same state objects
- * are produced by the browser client, by the headless CLI and by the tests. Enum *values* keep the
- * C# ordering (they are part of the persisted/replayed state), and enum *names* are kept in
- * PascalCase so the port stays greppable against the C# original.
+ * are produced by the browser client, by the headless CLI and by the tests. Enum values are stable
+ * because they are part of persisted and replayed state.
  */
 
-/** Kind of piece; values mirror the original C# enum ordering. */
+/** Kind of piece. */
 export enum PieceType {
   Soldier = 0,
   King = 1,
@@ -40,8 +39,8 @@ export enum TurnPhase {
 
 /**
  * The player's explicit choice when re-rolling is on offer (see
- * `RulesEngine.applyRerollDecision`). Re-rolling a sáhkku die is strictly optional: the engine must
- * support both choices and never decides for the player.
+ * `RulesEngine.applyRerollDecision`). The engine offers re-rolling only when the ruleset permits it;
+ * a player with no active pieces must use a sáhkku to activate a piece.
  */
 export enum RerollDecision {
   KeepDiceAndProceed = 0,
@@ -236,8 +235,7 @@ export class Move {
 }
 
 /**
- * A side effect of an applied action, emitted in the exact order the original implementation
- * triggered its audio, so the host can play sounds / visuals.
+ * A side effect of an applied action, emitted in order so the host can play sounds and visuals.
  */
 export class RuleEvent {
   kind: RuleEventKind;

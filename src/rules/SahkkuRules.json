@@ -62,7 +62,8 @@
     "useOrder": ["sahhku", "three", "two", "zero"],
     "reroll": {
       "faces": ["sahhku"],
-      "beforeUsingAnyDie": true
+      "beforeUsingAnyDie": true,
+      "requiresActivePiece": true
     },
     "faces": [
       { "id": "sahhku", "steps": 1 },

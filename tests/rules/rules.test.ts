@@ -1413,15 +1413,86 @@ describe("TurnTests", () => {
     expect(engine.canReroll(board.state), "the player presses once per sáhkku die").toBe(true);
   });
 
-  it("Reroll_DoesNotRequireAnAlreadyActivePiece", () => {
+  it.each([PieceOwner.P1, PieceOwner.P2])("Reroll_RequiresAnActivePieceForPlayer_%i", owner => {
     const engine = engineFromShippedRuleset();
+    const board = new Board(engine, owner);
+    const soldier = board.addOnArc(14, PieceType.Soldier, owner, false, true);
+    board.addOnArc(13, PieceType.Soldier, owner);
+    board.addOnArc(25, PieceType.Queen, owner, false, true);
+    board.addOnArc(5, PieceType.Soldier,
+      owner === PieceOwner.P1 ? PieceOwner.P2 : PieceOwner.P1, true);
+    engine.rollDice(board.state, new SequenceRandomSource([0, 0, 1]));
+
+    expect(engine.canReroll(board.state)).toBe(false);
+    const before = board.state.clone();
+    const random: IRandomSource = {
+      nextDieFaceIndex: () => { throw new Error("A forbidden reroll must not draw a die."); },
+    };
+    expect(() => engine.applyRerollDecision(
+      board.state, RerollDecision.RerollActiveDie, random,
+    )).toThrow(IllegalMoveException);
+    expect(() => engine.rerollFirstDie(board.state, random)).toThrow(IllegalMoveException);
+    expect(board.state).toEqual(before);
+
+    engine.applyRerollDecision(board.state, RerollDecision.KeepDiceAndProceed);
+    const moves = engine.legalMoves(board.state);
+    expect(moves.length).toBeGreaterThan(0);
+    for (const move of moves) {
+      const piece = engine.findPiece(board.state, move.pieceId)!;
+      expect(piece.owner).toBe(owner);
+      expect(piece.isActive).toBe(false);
+      expect(piece.canBeActivated).toBe(true);
+      expect(engine.isLegalMove(board.state, move)).toBe(true);
+      const result = board.state.clone();
+      engine.applyMove(result, move);
+      expect(engine.findPiece(result, move.pieceId)!.isActive).toBe(true);
+    }
+    expect(engine.getLegalMoves(board.state)).toEqual(moves);
+    engine.applyMove(board.state, moves.find(move => move.pieceId === soldier.id)!);
+    expect(soldier.isActive).toBe(true);
+    expect(board.state.currentActiveDie).toBe(1);
+    expect(engine.canReroll(board.state)).toBe(false);
+  });
+
+  it.each([PieceType.Soldier, PieceType.Queen, PieceType.King])(
+    "Reroll_AllowedWithAnActivePieceOfType_%i", type => {
+      const engine = engineFromShippedRuleset();
+      const board = new Board(engine);
+      board.add(5, type, PieceOwner.P1, true);
+      board.phase(TurnPhase.P1move);
+      board.setDice(DieFace.Sahhku);
+      expect(engine.canReroll(board.state)).toBe(true);
+    },
+  );
+
+  it("Reroll_ActivePieceRequirementComesFromTheRuleset", () => {
+    const rules = TestRuleset.load();
+    rules.dice.reroll.requiresActivePiece = false;
+    const engine = new RulesEngine(rules);
     const board = new Board(engine);
-    // The rules let a player re-roll the X dice; nothing says a piece must be loose already.
     board.add(5, PieceType.Soldier, PieceOwner.P1, false, true);
     board.phase(TurnPhase.P1move);
     board.setDice(DieFace.Sahhku);
-
     expect(engine.canReroll(board.state)).toBe(true);
+    engine.rerollFirstDie(board.state, new SequenceRandomSource([1]));
+    expect(board.state.dice).toEqual([DieFace.Three]);
+  });
+
+  it("Reroll_RequiresAnActivePieceAfterTheLastActivePieceIsCaptured", () => {
+    const engine = engineFromShippedRuleset();
+    const board = new Board(engine, PieceOwner.P2);
+    const attacker = board.add(8, PieceType.Soldier, PieceOwner.P2, true);
+    const victim = board.add(5, PieceType.Soldier, PieceOwner.P1, true);
+    board.addOnArc(14, PieceType.Soldier, PieceOwner.P1, false, true);
+    board.add(25, PieceType.Queen, PieceOwner.P1, false, true);
+    board.phase(TurnPhase.P2move);
+    board.setDice(DieFace.Three);
+    engine.applyMove(board.state, new Move(attacker.id, victim.placeIndex));
+    expect(engine.findPiece(board.state, victim.id)).toBeNull();
+    expect(board.state.turnPhase).toBe(TurnPhase.P1roll);
+    engine.rollDice(board.state, new SequenceRandomSource([0]));
+    expect(engine.canReroll(board.state)).toBe(false);
+    expect(engine.legalMoves(board.state).length).toBeGreaterThan(0);
   });
 
   it("Reroll_IsOnlyOfferedBeforeAnyDieHasBeenSpent", () => {
@@ -1521,6 +1592,7 @@ describe("RulesetJsonTests", () => {
     expect(rules.faceRules(DieFace.Zero).steps).toBe(0);
 
     expect(rules.dice.reroll.faces[0]).toBe("sahhku");
+    expect(rules.dice.reroll.requiresActivePiece).toBe(true);
     expect(rules.inactive.enterable).toBe(false);
     expect(rules.win.opponentSoldiersExhausted).toBe(true);
     expect(rules.pieces.soldier.recruitsKingOnEnemyHomeRow).toBe(true);
@@ -1538,7 +1610,7 @@ describe("RulesetJsonTests", () => {
       "track", "legs", "row", "direction", "moves", "movesScaleWithDie", "startActivatable",
       "queuesNextOnActivation", "blocksOwnLanding", "cannotLandOnOwnUnits", "capturable",
       "recruitedWhenLanded", "landingEndsGame", "recruitsKingOnEnemyHomeRow", "count",
-      "activateFace", "useOrder", "reroll", "faces", "beforeUsingAnyDie", "steps",
+      "activateFace", "useOrder", "reroll", "faces", "beforeUsingAnyDie", "requiresActivePiece", "steps",
       "onMoveInactivePiece", "unlockOffset", "enterable", "mode", "soldiers", "queens", "king",
       "placement", "x", "y", "owner", "soldiersActive", "opponentSoldiersExhausted",
       "width", "height", "layout", "id", "version", "P1", "P2", "standard", "evenOdds",
@@ -1591,6 +1663,14 @@ describe("RulesetJsonTests", () => {
   it("FromJson_RejectsMissingKeys", () => {
     expect(() => RuleSetJson.fromJson('{"id":"broken"}')).toThrow(RuleSetException);
   });
+
+  it.each([undefined, null, "true", 1])(
+    "FromJson_RejectsInvalidActivePieceRequirement_%s", value => {
+      const json = JSON.parse(TestRuleset.json());
+      json.dice.reroll.requiresActivePiece = value;
+      expect(() => RuleSetJson.fromJson(JSON.stringify(json))).toThrow(RuleSetException);
+    },
+  );
 });
 
 describe("SimulationTests", () => {
@@ -1775,17 +1855,11 @@ function jsonKeys(json: string): string[] {
   return keys;
 }
 
-/**
- * The sha256 of the ruleset document every rule below was verified against.
- *
- * The Unity copy that used to play this role was retired, so the shipped document is pinned here
- * instead: a change to the ruleset must now be a deliberate edit that updates this hash — and re-runs
- * the whole suite against the document it pins.
- */
-const SHIPPED_RULESET_SHA256 = "fff74c03cd3fa259dbf9a01bebe6af189798ed2dcbf95f482140e8803b8fa114";
+/** Pins the authoritative ruleset document exercised by the suite. */
+const SHIPPED_RULESET_SHA256 = "0c47831b262377dd52b34cad20a24c831c277ac82cfe3262a3b6728a28af60be";
 
 describe("ShippedRulesetFidelityTests", () => {
-  it("ShippedRuleset_IsThePinnedDocumentThePortWasVerifiedAgainst", () => {
+  it("ShippedRuleset_MatchesThePinnedDocument", () => {
     const shipped = readFileSync(
       resolve(moduleDirectory, "../../src/rules/SahkkuRules.json"),
       "utf8",

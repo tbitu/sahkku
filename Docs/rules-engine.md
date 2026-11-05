@@ -131,6 +131,7 @@ The remaining sections:
 | `dice.useOrder` | the order faces must be spent in: X, then III, then II, then blank |
 | `dice.reroll.faces` | the faces that may be thrown again (the sáhkku X) |
 | `dice.reroll.beforeUsingAnyDie` | re-rolls are only offered before any die of the throw is spent |
+| `dice.reroll.requiresActivePiece` | re-rolls require an active piece owned by the current player; otherwise a sáhkku must activate a piece |
 | `activation.onMoveInactivePiece.unlockOffset` | home-row lines between the mover's source line and the piece that becomes activatable (-1 = the next soldier in the queue) |
 | `inactive.enterable` | false = no piece may be moved onto a line holding an unactivated piece |
 | `start.mode` | `mostSahhku`: both players throw the whole set, most X starts, both repeat on a tie |
@@ -176,16 +177,17 @@ The token and accessible name show the selected piece; clicking a highlighted de
 that piece's move. Selecting or cycling does not spend a die.
 
 * Dice are spent in `dice.useOrder` (X, III, II, blank), so the sáhkku goes first and a blank face last.
-* Only the die currently up for spending can be re-rolled, and only while a sáhkku shows
-  (`beforeUsingAnyDie`). With several X's the player presses the button once per die, because the
-  ruleset re-sorts the dice after every re-roll.
-* `evenOdds` marks the three foremost soldiers *loose in place*: they are activated but have not made
-  their activation move.
+* Only the die currently up for spending can be re-rolled, and only while a sáhkku shows, no die
+  has been spent (`beforeUsingAnyDie`), and the current player owns an active soldier, queen or king
+  (`requiresActivePiece`). With no active pieces, the player must spend a sáhkku activating a piece.
+  With several X's and an active piece, the player presses the button once per re-roll, because the
+  ruleset re-sorts the dice after every re-roll. Activation spends a die, so it does not permit
+  re-rolling the remaining X's.
+* `evenOdds` starts the three foremost soldiers active and one step forward along their track.
 * Landing on your own active soldier is allowed (soldiers stack) and the mover still counts as moved.
-* The `RandomPlayerAgent` CPU keeps the original random draw, including its `Clamp(Range(0, 4), …)`
-  bias.
+* The `RandomPlayerAgent` CPU selects a legal move using its clamped random draw.
 * A soldier reaching the opponent's home row recruits the neutral king and announces it with a
-  `KingRecruited` event (the pre-engine code recruited the king silently).
+  `KingRecruited` event.
 
 ## Rule traceability
 
@@ -195,7 +197,7 @@ Every clause of the player-facing rules maps onto a ruleset field and a test:
 | --- | --- | --- |
 | Three dice X/III/II/blank; X = 1 step, activate, or re-roll | `dice` | `ShippedRuleset_DescribesTheVuonnamarkanGame` |
 | Faces must be spent X, then III, then II; you lose the II if the III has no move | `dice.useOrder` | `OrderDice_SpendsThreeBeforeTwoBeforeBlank`, `RollAndBeginTurn_HandsOverWhenNoDieCanBeUsed` |
-| When you roll X you may throw those dice again | `dice.reroll` | `Reroll_DoesNotRequireAnAlreadyActivePiece`, `Reroll_IsOnlyOfferedBeforeAnyDieHasBeenSpent` |
+| Re-roll X before spending any die only if you own an active piece; otherwise activate a piece | `dice.reroll` | `Reroll_RequiresAnActivePieceForPlayer`, `Reroll_RequiresAnActivePieceAfterTheLastActivePieceIsCaptured`, `Reroll_IsOnlyOfferedBeforeAnyDieHasBeenSpent` |
 | Soldiers are activated in queue order, foremost first; activating moves them one line | `activation`, `queuesNextOnActivation` | `MovingAnInactiveSoldier_MakesTheNeighbourActivatable`, `InactiveSoldier_NeedsSahhkuAndActivation` |
 | Unactivated pieces cannot move, be captured, or have their line entered | `inactive.enterable` | `Soldier_CannotLandOnInactiveOpponent`, `InactiveRule_ComesFromTheRuleset` |
 | The "8"-shaped track, including the second middle-row pass and the return home | `track.legs` | `Track_WalksTheFigureOfEightAndReturnsToTheHomeRow`, `SecondPassOverTheMiddleRow_DescendsIntoTheHomeRow`, `Soldier_FullLap_ReturnsToItsStartingCell` |

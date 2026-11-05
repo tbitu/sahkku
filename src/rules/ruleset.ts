@@ -1,13 +1,9 @@
 /**
- * The data-driven ruleset: the 1:1 port of the retired C# `RuleSet` and its reflection-free
- * `RuleSetJson.FromJson` mapper.
+ * The data-driven ruleset and its JSON mapper.
  *
  * `SahkkuRules.json` stays the single authoritative specification of the game: the engine only ever
  * consults the primitives this file declares, and `validate()` refuses a ruleset that is incomplete
  * or internally inconsistent.
- *
- * The C# original shipped a hand-written JSON reader to stay IL2CPP/WebGL-safe; here the platform's
- * `JSON.parse` does that job, so only the schema mapping and the validation are ported.
  */
 
 import { DieFace, PieceType, RuleSetException } from "./domain";
@@ -134,6 +130,9 @@ export interface RerollRules {
 
   /** Re-rolls are only allowed before any die of this throw has been spent. */
   beforeUsingAnyDie: boolean;
+
+  /** Re-rolls require at least one active piece owned by the current player. */
+  requiresActivePiece: boolean;
 }
 
 export interface DiceRules {
@@ -486,6 +485,9 @@ export class RuleSet {
     this.resolveFace(this.dice.activateFace);
 
     if (this.dice.reroll == null) throw new RuleSetException("Ruleset is missing 'dice.reroll'.");
+    if (typeof this.dice.reroll.requiresActivePiece !== "boolean") {
+      throw new RuleSetException("'dice.reroll.requiresActivePiece' must be a boolean.");
+    }
     if (this.dice.reroll.faces == null || this.dice.reroll.faces.length === 0) {
       throw new RuleSetException("'dice.reroll.faces' must list at least one re-rollable face.");
     }
@@ -592,7 +594,7 @@ export class RuleSet {
 }
 
 // ----------------------------------------------------------------------------------------------
-// JSON mapping (ported from the retired C# JSON reader)
+// JSON mapping
 // ----------------------------------------------------------------------------------------------
 
 /** Maps the ruleset JSON onto `RuleSet` (explicit, reflection-free). */
@@ -764,6 +766,7 @@ function parseReroll(value: unknown): RerollRules {
   return {
     faces: parseStringArray(require(value, "faces")),
     beforeUsingAnyDie: asBool(require(value, "beforeUsingAnyDie"), "beforeUsingAnyDie"),
+    requiresActivePiece: asBool(require(value, "requiresActivePiece"), "requiresActivePiece"),
   };
 }
 

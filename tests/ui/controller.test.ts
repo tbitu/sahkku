@@ -566,6 +566,27 @@ describe("WebMatchController: committing moves (T3_MOVE_APPLICATION)", () => {
 // ---------------------------------------------------------------------------------- reroll
 
 describe("WebMatchController: the re-roll decision", () => {
+  it("requires activation without offering a reroll when no piece is active", () => {
+    const controller = standardController([DieFace.Sahhku, DieFace.Sahhku, DieFace.Three]);
+    expect(controller.roll()).toBe(true);
+    expect(controller.viewModel.dice.canReroll).toBe(false);
+    expect(controller.viewModel.dice.canRoll).toBe(false);
+    expect(controller.viewModel.selectablePieceIds.length).toBeGreaterThan(0);
+    const before = controller.state.clone();
+    expect(controller.rerollActiveDie()).toBe(false);
+    expect(controller.state).toEqual(before);
+    expect(controller.keepDice()).toBe(true);
+    expect(controller.state.currentPlayer).toBe(PieceOwner.P1);
+    const move = controller.legalMoves[0]!;
+    const piece = locatedPieces(controller).find(entry => entry.piece.id === move.pieceId)!.piece;
+    expect(piece.isActive).toBe(false);
+    expect(controller.selectPiece(piece.id)).toBe(true);
+    expect(controller.handlePlaceClick(move.targetPlaceIndex)).toBe(true);
+    expect(piece.isActive).toBe(true);
+    expect(controller.state.currentActiveDie).toBe(1);
+    expect(controller.viewModel.dice.canReroll).toBe(false);
+  });
+
   it("offers the re-roll while a re-rollable face is showing before any die has been spent", () => {
     const { controller, engine } = evenOddsController([DieFace.Sahhku, DieFace.Zero, DieFace.Zero]);
 

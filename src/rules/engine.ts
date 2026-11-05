@@ -1,5 +1,5 @@
 /**
- * The rules engine: the 1:1 port of the retired C# `RulesEngine`.
+ * The shared, data-driven rules engine.
  *
  * Behaviour is defined by a `RuleSet` loaded from JSON; this type contains only the rule primitives
  * those definitions select. It has no host dependency and no hidden state, so it runs unchanged in
@@ -193,8 +193,8 @@ export class RulesEngine {
    * Throws the die currently up for spending again, exactly as `applyRerollDecision` with
    * `RerollDecision.RerollActiveDie` does — the re-thrown die is ordered back into the ruleset's
    * spending order, so the next sáhkku (if any) becomes the die up for spending. Only legal while
-   * the ruleset allows re-rolling (here: while a sáhkku face is up and no die has been spent yet).
-   * This is the legacy one-step shorthand; hosts that ask the player first should call
+   * the ruleset allows re-rolling: a sáhkku face is up, no die has been spent yet, and the player
+   * owns an active piece. Hosts that ask the player first should call
    * `applyRerollDecision` instead.
    */
   rerollFirstDie(state: GameState, random: IRandomSource): void {
@@ -238,6 +238,11 @@ export class RulesEngine {
     if (state.gameOver || state.isRollPhase) return false;
     if (state.rerollDecisionMade) return false; // the player already chose to keep these dice
     if (this.rules.dice.reroll.beforeUsingAnyDie && state.currentActiveDie !== 0) return false;
+    if (this.rules.dice.reroll.requiresActivePiece &&
+        !state.places.some(place =>
+          place.pieces.some(piece => piece.owner === state.currentPlayer && piece.isActive))) {
+      return false;
+    }
     return this.canRerollFace(this.currentFace(state));
   }
 

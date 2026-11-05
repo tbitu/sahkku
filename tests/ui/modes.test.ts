@@ -321,6 +321,28 @@ describe("BotDriver: the automated seats", () => {
     expect(engine.validateState(controller.state)).toEqual([]);
   }, 30000);
 
+  it("asks a bot to activate a piece without offering a reroll when none are active", async () => {
+    const engine = testEngine();
+    const board = new Board(engine);
+    const soldier = board.addOnArc(14, PieceType.Soldier, PieceOwner.P1, false, true);
+    board.add(40, PieceType.Soldier, PieceOwner.P2, true);
+    const controller = new WebMatchController(
+      engine, { nextDieFaceIndex: () => DieFace.Sahhku }, new EngineOptions(PieceOwner.P1, false),
+      board.state, { humanPlayers: [] },
+    );
+    const driver = new BotDriver(controller, engine, { thinkDelayMs: 0 });
+    const agent = createBotAgent("easy", PieceOwner.P1, engine);
+    const reroll = vi.spyOn(agent, "decideReroll");
+    driver.setAgents({ [PieceOwner.P1]: agent });
+    expect(await driver.step()).toBe(true);
+    expect(controller.state.turnPhase).toBe(TurnPhase.P1move);
+    expect(await driver.step()).toBe(true);
+    expect(reroll).not.toHaveBeenCalled();
+    expect(soldier.isActive).toBe(true);
+    expect(controller.state.currentActiveDie).toBe(1);
+    driver.stop();
+  });
+
   it("survives an agent that rejects every decision", async () => {
     const reported = vi.spyOn(console, "error").mockImplementation(() => {});
     const engine = testEngine();
