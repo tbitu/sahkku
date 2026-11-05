@@ -43,20 +43,8 @@ const ZERO_FACE = 3;
 const DIE_FACE_COUNT = 4;
 
 /**
- * The opening throw: the shipped setup throws for the start, and a throw that never sees a sáhkku fails
- * outright — which takes the boot's bot driver down with it. The plan has to end that throw under
- * *either* `start.mode` the ruleset allows, from any point the drawer has reached:
- *
- * - `firstSahhku` hands the start to the first player whose throw shows a sáhkku, so every three-die
- *   window needs at least one sáhkku;
- * - `mostSahhku` counts three dice per player *and repeats on a tie*, so the two halves of every six-die
- *   window must disagree; a tie would spin the engine (and the page) forever.
- *
- * Five sáhkku and a three per cycle satisfy both: no window of three is all threes, and the halves of
- * every six-die window hold three sáhkku against two (or the reverse). A plan of sáhkku only would tie
- * both players forever in `mostSahhku`, and a plan whose tail is a three would starve a later throw of
- * the sáhkku it needs — the drawer cycles the plan rather than repeating its last face (see
- * {@link seedDice}), so both stay true however far the drawer has run.
+ * Five sáhkku and a three per cycle ensure every paired opening throw has unequal X counts,
+ * regardless of where the cycling drawer starts. A constant plan would tie indefinitely.
  */
 const OPENING_PLAN = [SAHKKU_FACE, SAHKKU_FACE, SAHKKU_FACE, SAHKKU_FACE, SAHKKU_FACE, THREE_FACE];
 
@@ -666,6 +654,30 @@ test('cold launch: the board renders and the console stays clean', async ({ page
 
   failures.expectClean();
 });
+
+for (const { name, faces, winner } of [
+  { name: 'Women have more X', faces: [0, 0, 1, 0, 1, 1], winner: WOMEN },
+  { name: 'Men have more X despite Women rolling X', faces: [0, 1, 1, 0, 0, 1], winner: MEN },
+  { name: 'both reroll repeated ties', faces: [3, 3, 3, 3, 3, 3, 0, 1, 1, 0, 1, 1, 0, 1, 1, 0, 0, 1], winner: MEN },
+]) {
+  test(`throw for start: ${name}`, async ({ page }) => {
+    const failures = watchForFailures(page);
+    await seedDice(page);
+    await openClient(page);
+    await planDice(page, faces);
+    await applySetup(page, { mode: 'hotseat_2p', starter: 'throw' });
+
+    await expect(statusBar(page)).toContainText(winner);
+    await expect(rollButton(page)).toBeEnabled();
+    await expect(page.locator('#dice-tray .die--active')).toHaveCount(0);
+    expect(await page.evaluate(() => window.__sahkkuDice.draw)).toBe(faces.length);
+
+    await planDice(page, PLAY_PLAN);
+    await rollDice(page);
+    await expect(page.locator('#dice-tray .die[aria-label*="III (three)"]')).toHaveCount(DICE_COUNT);
+    failures.expectClean();
+  });
+}
 
 test('setup dropdowns never start or reset a match', async ({ page }) => {
   const failures = watchForFailures(page);

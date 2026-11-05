@@ -38,6 +38,20 @@ import { Board, testEngine } from "../helpers/board";
 // ---------------------------------------------------------------------------------- test doubles
 
 describe("explicit match start", () => {
+  it("uses paired opening throws on creation and restart", () => {
+    const controller = new WebMatchController(
+      testEngine(),
+      new ScriptedRandomSource([0, 1, 1, 0, 0, 1, 0, 0, 1, 0, 1, 1]),
+      new EngineOptions(PieceOwner.P1, false, true),
+    );
+    expect(controller.viewModel.currentPlayer).toBe(PieceOwner.P2);
+    expect(controller.viewModel.dice.rolled).toBe(false);
+
+    controller.restart();
+    expect(controller.viewModel.currentPlayer).toBe(PieceOwner.P1);
+    expect(controller.viewModel.dice.rolled).toBe(false);
+  });
+
   it("keeps the preview inert until a fresh match is started", () => {
     const engine = testEngine();
     const controller = new WebMatchController(

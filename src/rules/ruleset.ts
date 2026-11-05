@@ -33,10 +33,7 @@ export const TrackDirections = {
 
 /** Starting-player rules. */
 export const StartModes = {
-  /** Players throw in turn; the first to roll a sáhkku (X) starts. */
-  FirstSahhku: "firstSahhku",
-
-  /** Each player throws the whole set once; the most sáhkku (X) faces start. */
+  /** Both players throw the whole set; the most sáhkku (X) faces start. Both repeat on a tie. */
   MostSahhku: "mostSahhku",
 } as const;
 
@@ -342,9 +339,9 @@ export class RuleSet {
     if (this.inactive == null) throw new RuleSetException("Ruleset is missing 'inactive'.");
 
     if (this.start == null) throw new RuleSetException("Ruleset is missing 'start'.");
-    if (this.start.mode !== StartModes.FirstSahhku && this.start.mode !== StartModes.MostSahhku) {
+    if (this.start.mode !== StartModes.MostSahhku) {
       throw new RuleSetException(
-        `Unsupported 'start.mode' '${this.start.mode}'; expected '${StartModes.FirstSahhku}' or '${StartModes.MostSahhku}'.`,
+        `Unsupported 'start.mode' '${this.start.mode}'; expected '${StartModes.MostSahhku}'.`,
       );
     }
 

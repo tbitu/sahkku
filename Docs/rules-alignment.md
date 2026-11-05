@@ -128,11 +128,10 @@ each is recorded so that a later change is a decision rather than an accident.
    **Kept: the PDF rule** (first recruitment by entering the enemy home row, then by moving onto it).
 5. **Whether a move may jump over pieces.** No source states it either way for this variant, and the
    engine only ever looks at the destination line. Unchanged.
-6. **Who starts.** The rules say the players throw dice and the first to roll an X starts; the game also
-   lets the player choose in the menu. Both are the engine's (`RulesEngine.throwForStartingPlayer`,
-   `start.mode`, tested) and the setup screen offers both: "throw for start" hands the choice to that
-   throw and is the shipped default, while the manual pick (women or men) is
-   `EngineOptions.startingPlayer`.
+6. **Who starts.** Both players throw three dice. The player with the most sáhkku (X) starts;
+   on a tie, both throw all three again. `start.mode` is `mostSahhku`, interpreted by
+   `RulesEngine.throwForStartingPlayer`. "Throw for start" is the setup default; choosing
+   women or men manually uses `EngineOptions.startingPlayer` without opening throws.
 7. **Where the rules live in the client.** The retired Unity build opened `SahkkuRules.pdf` from disk,
    which is why its README asked for the PDFs to ship next to a build. The 2D client instead renders an
    illustrated rules dialog (`src/ui/help.ts`) from localized strings and inline SVG, so the rules travel

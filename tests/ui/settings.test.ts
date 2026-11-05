@@ -386,6 +386,9 @@ describe("HelpModal", () => {
     const card = overlay.firstElementChild as unknown as FakeElement;
     const sections = card.children.filter((child) => child.className === "help-section");
     expect(sections.length).toBeGreaterThanOrEqual(6);
+    expect(sections.some((section) =>
+      section.querySelector(".help-body")?.textContent === "help.start.body",
+    )).toBe(true);
     // Every section is illustrated, so the guide is a document with diagrams, not a wall of text.
     for (const section of sections) {
       expect(section.querySelector(".help-figure")).not.toBeNull();

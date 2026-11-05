@@ -267,6 +267,10 @@ const englishStrings = {
       title: "The board and the track",
       body: "The board is three rows of fifteen carved cells. The two outer rows are the home rows and the row between them is shared. Soldiers follow a continuous figure-of-eight track: along their home row, back along the middle row, along the opponent's home row, back along the middle row again, then onto their home row to repeat the lap. Reaching the end of the opponent's row does not end movement: the next step turns onto the middle row. The middle row is visited twice per lap (the diagram separates the two passes for clarity). The other player follows the mirrored route. The cells cut with an X are sacred.",
     },
+    start: {
+      title: "Who starts",
+      body: "Before play, both players roll three dice. Whoever rolls the most sáhkku (X) starts. If the counts are equal, both players roll all three dice again until there is a winner. The setup also lets you choose Women or Men to start instead.",
+    },
     dice: {
       title: "The dice (birccu)",
       body: "Three four-sided dice are thrown each turn. X (sáhkku) is one step and also wakes a sleeping soldier; III is three steps, II two steps and the blank side nothing at all. The dice must be spent in the order the ruleset declares, and a sáhkku may be thrown again before any die has been spent.",
@@ -518,6 +522,10 @@ const northSamiStrings: StringTable = {
       title: "Heasta ja báni",
       body: "Heasttas leat golbma ráiddu, juohke ráiddus vihttanlogi čuollojuvvon saji. Olgoráiddut leat ruoktaráiddut ja gaskkas lea juhkkojuvvon ráiddu, mon goappašagat rasttilit. Sotnjehat mannet gávccahađan-šleaippa: iežaset ruoktaráiddu mielde, gaskaráiddu mielde ruovttoluotta, vuostášeaddji ruoktaráiddu mielde, gaskaráiddu mielde ruovttoluotta fas ja de iežaset ruoktaráidui, gos šleaippa álgá ođđasit. Vuostášeaddji ráiddu loahpas lihkadeapmi ii nohkka: boahtte lávki manná gaskaráidui. Gaskaráiddu rasttilit guovtte geardde juohke šleaippas (govas leat dát guokte gearddi earuhuvvon čielggasvuođa dihtii). Nubbi spealli čuovvu speadjilastin-geainnu. Sajit, main lea čuollojuvvon X, leat bastit.",
     },
+    start: {
+      title: "Gii álgá",
+      body: "Ovdal spealu goappaš speallit bálkket golbma birccu. Dat spealli, gii oažžu eanemus sáhkku (X), álgá. Jos goappašagat oažžuba seamma olu sáhkku, goappašagat bálkeba buot golbma birccu ođđasit, gitta dassážii go nubbi oažžu eanet. Sáhtát maid válljet ahte nisut dahje almmát álget.",
+    },
     dice: {
       title: "Birccut",
       body: "Golbma njealljesierat birccu bálkkejuvvojit juohke vuorus. X (sáhkku) lea okta lávki ja heruhta nađe sotnjeha; III lea golbma lávki, II guokte lávki ja guoros sierra ii masa ge. Birccut geavahuvvojit dan ortnegis, mon njuolggadusat mearridit, ja sáhkku sáhttá bálkkejuvvot ođđasit ovdal go oktage birccu lea geavahuvvon.",
@@ -756,6 +764,10 @@ const norwegianStrings: StringTable = {
     board: {
       title: "Brettet og banen",
       body: "Brettet har tre rader med femten skårne ruter. Ytterradene er hjemradene, og raden mellom dem er delt. Soldatene følger en sammenhengende åttetallssløyfe: langs egen hjemrad, tilbake langs midtraden, langs motstanderens hjemrad, tilbake langs midtraden igjen og så inn på egen hjemrad for en ny runde. Bevegelsen slutter ikke ved enden av motstanderens rad: neste steg svinger inn på midtraden. Midtraden passeres to ganger per runde (tegningen skiller de to passeringene for tydelighetens skyld). Den andre spilleren følger en speilvendt bane. Rutene med et skåret X er hellige.",
+    },
+    start: {
+      title: "Hvem begynner",
+      body: "Før spillet kaster begge spillerne tre terninger. Den som får flest sáhkku (X), begynner. Ved likt antall kaster begge alle tre terningene på nytt til én får flere enn den andre. I oppsettet kan du også velge at kvinnene eller mennene skal begynne i stedet.",
     },
     dice: {
       title: "Terningene (birccu)",

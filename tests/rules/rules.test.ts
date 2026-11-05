@@ -357,23 +357,110 @@ describe("SetupTests", () => {
     expect(state.currentPlayer).toBe(PieceOwner.P2);
   });
 
-  it("ThrowForStartingPlayer_FirstSahhkuStarts", () => {
+  it("ThrowForStartingPlayer_RejectsUnsupportedModes", () => {
     const engine = engineFromShippedRuleset();
+    engine.rules.start.mode = "unknown";
 
-    // P1 throws blank-blank-blank (3,3,3), P2 throws a sáhkku on the first die.
-    const random = new SequenceRandomSource([3, 3, 3, 0, 1, 1, 2]);
+    expect(() => engine.rules.validate()).toThrow(
+      "Unsupported 'start.mode' 'unknown'; expected 'mostSahhku'.",
+    );
+    expect(() => engine.throwForStartingPlayer(new SequenceRandomSource([0]))).toThrow(
+      "Unsupported 'start.mode' 'unknown'; expected 'mostSahhku'.",
+    );
+  });
+
+  it.each([
+    { faces: [0, 0, 1, 0, 1, 1], winner: PieceOwner.P1 },
+    { faces: [0, 1, 1, 0, 0, 1], winner: PieceOwner.P2 },
+    { faces: [1, 1, 1, 1, 1, 0], winner: PieceOwner.P2 },
+  ])("ThrowForStartingPlayer_MostSahhkuStarts ($faces)", ({ faces, winner }) => {
+    const engine = engineFromShippedRuleset();
+    let draws = 0;
+    const random: IRandomSource = {
+      nextDieFaceIndex: () => {
+        if (draws >= faces.length) throw new Error("Unexpected extra opening die.");
+        return faces[draws++];
+      },
+    };
+
+    expect(engine.throwForStartingPlayer(random)).toBe(winner);
+    expect(draws).toBe(6);
+  });
+
+  it.each([
+    { ties: [3, 3, 3, 3, 3, 3] },
+    { ties: [0, 1, 2, 1, 0, 3] },
+    { ties: [0, 0, 0, 0, 0, 0] },
+    { ties: [3, 3, 3, 3, 3, 3, 0, 1, 2, 1, 0, 3] },
+  ])("ThrowForStartingPlayer_RerollsBothPlayersOnATie ($ties)", ({ ties }) => {
+    const engine = engineFromShippedRuleset();
+    const faces = [...ties, 0, 1, 1, 0, 0, 1];
+    let draws = 0;
+    const random: IRandomSource = {
+      nextDieFaceIndex: () => {
+        if (draws >= faces.length) throw new Error("Unexpected extra opening die.");
+        return faces[draws++];
+      },
+    };
+
     expect(engine.throwForStartingPlayer(random)).toBe(PieceOwner.P2);
+    expect(draws).toBe(faces.length);
+  });
+
+  it("ThrowForStartingPlayer_IsFairAcrossAllPairedThrows", () => {
+    const engine = engineFromShippedRuleset();
+    let p1Wins = 0;
+    let p2Wins = 0;
+    let ties = 0;
+
+    for (let roll = 0; roll < 4 ** 6; roll++) {
+      const faces = Array.from({ length: 6 }, (_, die) => (roll >> (die * 2)) & 3);
+      const p1 = faces.slice(0, 3).filter((face) => face === 0).length;
+      const p2 = faces.slice(3).filter((face) => face === 0).length;
+      if (p1 > p2) p1Wins++;
+      else if (p2 > p1) p2Wins++;
+      else ties++;
+
+      let draws = 0;
+      const sequence = [...faces, 0, 0, 0, 1, 1, 1];
+      const winner = engine.throwForStartingPlayer({
+        nextDieFaceIndex: () => {
+          if (draws >= sequence.length) throw new Error("Unexpected extra opening die.");
+          return sequence[draws++];
+        },
+      });
+      expect(winner).toBe(p1 >= p2 ? PieceOwner.P1 : PieceOwner.P2);
+      expect(draws).toBe(p1 === p2 ? 12 : 6);
+    }
+
+    expect(p1Wins).toBe(1278);
+    expect(p2Wins).toBe(p1Wins);
+    expect(ties).toBe(1540);
+  });
+
+  it.each([0, 3])("ThrowForStartingPlayer_RejectsEndlessTies (%i)", (face) => {
+    const engine = engineFromShippedRuleset();
+    let draws = 0;
+    expect(() => engine.throwForStartingPlayer({
+      nextDieFaceIndex: () => {
+        draws++;
+        return face;
+      },
+    })).toThrow(new RuleSetException(
+      "ThrowForStartingPlayer produced 10000 tied throws; the random source looks broken.",
+    ));
+    expect(draws).toBe(60000);
   });
 
   it("InitGame_WithThrowForStartingPlayer_SetsValidPlayer", () => {
     const engine = engineFromShippedRuleset();
 
-    // P1 throws blank-blank-blank (face index 3), P2 throws a sáhkku on the first die.
-    const random = new SequenceRandomSource([3, 3, 3, 0]);
+    const random = new SequenceRandomSource([0, 1, 1, 0, 0, 1]);
     const state = engine.initGame(new EngineOptions(PieceOwner.P1, false, true), random);
 
     expect(state.turnPhase).toBe(TurnPhase.P2roll);
     expect(state.currentPlayer).toBe(PieceOwner.P2);
+    expect(state.dice).toEqual([DieFace.Zero, DieFace.Zero, DieFace.Zero]);
     // The rest of the setup is untouched by the throw.
     expect(state.places.length).toBe(45);
     expect(engine.validateState(state), "the initial position must satisfy the invariants").toEqual([]);
@@ -1440,7 +1527,7 @@ describe("RulesetJsonTests", () => {
     expect(rules.pieces.queen.landingEndsGame).toBe(true);
     expect(rules.pieces.king.capturable).toBe(false);
     expect(rules.activation.onMoveInactivePiece.unlockOffset).toBe(-1);
-    expect(rules.start.mode).toBe(StartModes.FirstSahhku);
+    expect(rules.start.mode).toBe(StartModes.MostSahhku);
   });
 
   it("NoSchemaFieldIsLeftUnread", () => {
@@ -1695,7 +1782,7 @@ function jsonKeys(json: string): string[] {
  * instead: a change to the ruleset must now be a deliberate edit that updates this hash — and re-runs
  * the whole suite against the document it pins.
  */
-const SHIPPED_RULESET_SHA256 = "251f7adfef695696a96dde83f02c46c5bb762fbcfe246ef7e77c9cbed9250304";
+const SHIPPED_RULESET_SHA256 = "fff74c03cd3fa259dbf9a01bebe6af189798ed2dcbf95f482140e8803b8fa114";
 
 describe("ShippedRulesetFidelityTests", () => {
   it("ShippedRuleset_IsThePinnedDocumentThePortWasVerifiedAgainst", () => {

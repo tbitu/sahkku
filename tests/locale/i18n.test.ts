@@ -110,6 +110,8 @@ describe("i18n: the shipped tables (T4_I18N_COMPLETENESS)", () => {
       "settings.audio.sfxVolume",
       "settings.audio.mute",
       "help.intro.body",
+      "help.start.title",
+      "help.start.body",
     ]) {
       expect(english.has(required), `missing ${required}`).toBe(true);
     }

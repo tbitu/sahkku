@@ -25,7 +25,7 @@ rule code runs in the browser, in a web worker, in the headless benchmark and in
 
 ```ts
 initGame(options: EngineOptions, random?: IRandomSource | null): GameState;
-throwForStartingPlayer(random: IRandomSource): PieceOwner; // "first to roll X starts" (see start.mode)
+throwForStartingPlayer(random: IRandomSource): PieceOwner; // most X starts; both repeat on a tie (see start.mode)
 rollAllDice(state: GameState, random: IRandomSource): void;
 rollDice(state: GameState, random: IRandomSource): void;
 rollAndBeginTurn(state: GameState, random: IRandomSource): void; // roll + order + open the move phase
@@ -133,7 +133,7 @@ The remaining sections:
 | `dice.reroll.beforeUsingAnyDie` | re-rolls are only offered before any die of the throw is spent |
 | `activation.onMoveInactivePiece.unlockOffset` | home-row lines between the mover's source line and the piece that becomes activatable (-1 = the next soldier in the queue) |
 | `inactive.enterable` | false = no piece may be moved onto a line holding an unactivated piece |
-| `start.mode` | `firstSahhku` (players throw in turn, the first X starts) or `mostSahhku` |
+| `start.mode` | `mostSahhku`: both players throw the whole set, most X starts, both repeat on a tie |
 | `variants.*.soldiersActive` | how many leading soldiers start loose and one step forward along their track; the next one starts activatable |
 | `win.opponentSoldiersExhausted` | you win when the opponent has no soldiers left |
 
@@ -141,6 +141,10 @@ The remaining sections:
 `RuleSetException`: unknown face ids, a spending order that skips a face, a track whose legs do not join
 end-to-end with a bend, overlapping setup cells, a variant that leaves no soldier to activate, and a
 ruleset with no way to win.
+
+These opening throws only select the starter; that player rolls afresh for their first turn.
+Manual Women/P1 or Men/P2 selection bypasses the opening throws. The engine throws
+`RuleSetException` after 10,000 consecutive tied rounds to guard against a broken random source.
 
 ## Tests
 
@@ -202,7 +206,7 @@ Every clause of the player-facing rules maps onto a ruleset field and a test:
 | The king is recruited when a soldier enters the enemy home row | `recruitsKingOnEnemyHomeRow` | `MovingASoldierIntoEnemyTerritory_ActivatesTheNeutralKing`, `KingRecruitmentComesFromTheRuleset` |
 | The queen starts unactivated and may be activated in any direction | `startActivatable` | `Queen_MovesForwardBackwardAndVertically` |
 | Losing the queen loses the game; losing every soldier loses the game | `landingEndsGame`, `win` | `CapturingTheQueen_EndsTheGame`, `CapturingEveryEnemySoldier_EndsTheGame`, `LosingTheQueenOnlyEndsTheGameWhenTheRulesetSaysSo` |
-| "The first one to get X starts" | `start.mode` | `ThrowForStartingPlayer_FirstSahhkuStarts` |
+| Both players throw three dice; most X starts; both repeat on a tie | `start.mode` | `ThrowForStartingPlayer_MostSahhkuStarts`, `ThrowForStartingPlayer_RerollsBothPlayersOnATie` |
 | "Like odds": three soldiers are taken loose | `variants.evenOdds.soldiersActive` | `InitGame_EvenOdds_MarksTheThreeForemostSoldiersLoose` |
 
 ## Agents (`src/agents/`)

@@ -35,6 +35,7 @@ interface HelpSection {
 const Sections: readonly HelpSection[] = [
   { titleKey: "help.intro.title", bodyKey: "help.intro.body", figure: figureFigureOfEight },
   { titleKey: "help.board.title", bodyKey: "help.board.body", figure: figureBoard },
+  { titleKey: "help.start.title", bodyKey: "help.start.body", figure: figureDice },
   { titleKey: "help.dice.title", bodyKey: "help.dice.body", figure: figureDice },
   { titleKey: "help.pieces.title", bodyKey: "help.pieces.body", figure: figurePieces },
   { titleKey: "help.activation.title", bodyKey: "help.activation.body", figure: figureQueue },

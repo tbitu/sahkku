@@ -122,25 +122,19 @@ export class RulesEngine {
     if (random == null) throw new RuleSetException("ThrowForStartingPlayer requires a random source.");
     const activateId = this.rules.dice.activateFace;
 
-    if (this.rules.start.mode === StartModes.MostSahhku) {
-      let p1: number;
-      let p2: number;
-      do {
-        p1 = this.countSahhku(random, activateId);
-        p2 = this.countSahhku(random, activateId);
-      } while (p1 === p2);
-      return p1 > p2 ? PieceOwner.P1 : PieceOwner.P2;
+    if (this.rules.start.mode !== StartModes.MostSahhku) {
+      throw new RuleSetException(
+        `Unsupported 'start.mode' '${this.rules.start.mode}'; expected '${StartModes.MostSahhku}'.`,
+      );
     }
 
-    let owner = PieceOwner.P1;
     for (let attempt = 0; attempt < 10000; ++attempt) {
-      for (let die = 0; die < this.rules.dice.count; ++die) {
-        if (this.rules.dice.faces[random.nextDieFaceIndex()].id === activateId) return owner;
-      }
-      owner = owner === PieceOwner.P1 ? PieceOwner.P2 : PieceOwner.P1;
+      const p1 = this.countSahhku(random, activateId);
+      const p2 = this.countSahhku(random, activateId);
+      if (p1 !== p2) return p1 > p2 ? PieceOwner.P1 : PieceOwner.P2;
     }
     throw new RuleSetException(
-      "ThrowForStartingPlayer never produced a sáhkku; the random source looks broken.",
+      "ThrowForStartingPlayer produced 10000 tied throws; the random source looks broken.",
     );
   }
 
