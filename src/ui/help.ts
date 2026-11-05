@@ -275,7 +275,7 @@ function figureVictory(doc: Document): SVGElement {
     { type: PieceType.King, owner: PieceOwner.P1, isActive: true },
     doc,
   );
-  king.setAttribute("class", `${king.getAttribute("class") ?? "piece"} help-token help-token--winner`);
+  king.setAttribute("class", `${king.getAttribute("class") ?? "piece"} help-token`);
   const winner = svgGroup(doc, "translate(96 12) scale(1.15)");
   winner.appendChild(king);
   svg.appendChild(winner);

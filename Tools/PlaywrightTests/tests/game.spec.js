@@ -219,6 +219,45 @@ async function storedSettings(page) {
 
 // ---------------------------------------------------------------------------------------- tests
 
+for (const viewport of [DESKTOP, PORTRAIT_PHONE]) {
+  test(`rules: illustrated guide stays responsive at ${viewport.width}px`, async ({ page, baseURL }) => {
+    const failures = watchForFailures(page);
+    await page.setViewportSize(viewport);
+    await page.goto(baseURL);
+    await expect(page.locator('#board .cell')).toHaveCount(BOARD_COLUMNS * BOARD_ROWS);
+    const rulesButton = page.locator('#help-button');
+    const guide = page.locator('#dialog-root [data-dialog="help"]');
+
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      await rulesButton.click();
+      await expect(guide).toBeVisible();
+      await expect(guide.locator('.help-section')).toHaveCount(7);
+      await expect(guide.locator('.help-svg')).toHaveCount(7);
+      await expect(guide.locator('.help-token')).toHaveCount(5);
+      expect(await guide.locator('.help-token').evaluateAll(tokens =>
+        tokens.map(token => {
+          const style = getComputedStyle(token);
+          return { filter: style.filter, transform: style.transform, transition: style.transitionProperty };
+        }),
+      )).toEqual(Array(5).fill({ filter: 'none', transform: 'none', transition: 'none' }));
+      const close = guide.locator('[data-action="close"]');
+      await close.scrollIntoViewIfNeeded();
+      await expect(close).toBeInViewport();
+      if (attempt === 0) {
+        await close.click();
+      } else {
+        await page.keyboard.press('Escape');
+      }
+      await expect(guide).toHaveCount(0);
+      await expect(rulesButton).toBeFocused();
+    }
+
+    await applySetup(page, { mode: 'hotseat_2p', starter: 'P1', speed: 'fast' });
+    await expect(rollButton(page)).toBeVisible();
+    failures.expectClean();
+  });
+}
+
 for (const [speed, delay] of [['fast', 900], ['normal', 1600], ['slow', 2400], ['kajsa', 3500]]) {
   test(`unusable dice: all blanks remain visible for ${speed} pace`, async ({ page }) => {
     const failures = watchForFailures(page);

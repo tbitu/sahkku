@@ -38,6 +38,8 @@ this repository now builds the 2D web client described below.
   the ruleset's spending order, capture counters, rule-event banners, an end-of-match card, match setup
   (single player against a bot, local hot-seat, spectator bot-vs-bot, pace, variant, starting player) and
   a rules/help modal. Bot speed can be changed during a match without resetting the board, dice or turn.
+  Rules illustrations reuse the piece shapes without the board's CSS filters or animations, keeping
+  the nested SVG diagrams on a plain rendering path.
   Choose the match setup, then press **Start game**; dropdown changes configure the next match without
   starting or resetting play. During play the button becomes a secondary **Restart game…** action
   that asks for confirmation before replacing the current match. Setup is labelled **Next game setup**;
