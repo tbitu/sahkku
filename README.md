@@ -8,7 +8,11 @@ Play the deployed web client at [samiailab.samas.no/sahkku](https://samiailab.sa
 The whole game is modern TypeScript: one engine-agnostic rules core, a set of interchangeable player
 agents, a headless match runner and benchmark, and an open-license 2D board that plays in the browser.
 There is no game engine, no 3D runtime, no WebAssembly and no proprietary asset pipeline — everything
-the client draws is CSS and inline SVG, and every dependency is open source.
+the game draws is CSS and inline SVG, and every dependency is open source.
+The footer displays the supplied Sámi Made certification logo, linking to the
+[certification entry](https://samitrademarks.com/sertifiserte-aktorer/entry/523/?view=132) in a new tab.
+The logo is 80 × 80 px on desktop (above 900 px wide) and 64 × 64 px on smaller screens.
+It is hidden with the footer in fullscreen and fill-window modes.
 
 The published Unity WebGL build is still playable at [itch.io](https://zhamul.itch.io/digital-shkku);
 this repository now builds the 2D web client described below.

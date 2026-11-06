@@ -320,6 +320,35 @@ for (const variant of ['standard', 'evenOdds']) {
   });
 }
 
+for (const viewport of [PORTRAIT_PHONE, DESKTOP]) {
+  test(`certification: footer logo opens a new tab at ${viewport.width}px`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    await openClient(page);
+    const url = 'https://samitrademarks.com/sertifiserte-aktorer/entry/523/?view=132';
+    const link = page.getByRole('link', { name: 'Sámi Made' });
+    const logo = link.locator('img');
+    await expect(link).toHaveAttribute('href', url);
+    await expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+    await expect(logo).toBeVisible();
+    await expect.poll(() => logo.evaluate(image => image.naturalWidth)).toBe(1000);
+    await link.scrollIntoViewIfNeeded();
+    await expect(link).toBeInViewport({ ratio: 1 });
+    const bounds = await logo.boundingBox();
+    const size = viewport.width > 900 ? 80 : 64;
+    expect(bounds.width).toBe(size);
+    expect(bounds.height).toBe(size);
+    await expect.poll(() => page.evaluate(() =>
+      document.documentElement.scrollWidth <= innerWidth,
+    )).toBe(true);
+    await page.context().route(url, route => route.fulfill({ body: 'Certification entry' }));
+    const popupPromise = page.waitForEvent('popup');
+    await link.click();
+    const popup = await popupPromise;
+    await expect(popup).toHaveURL(url);
+    await popup.close();
+  });
+}
+
 for (const viewport of [PORTRAIT_PHONE, LANDSCAPE_PHONE, DESKTOP]) {
   test(`fullscreen: board-only fallback preserves play at ${viewport.width}px`, async ({ page }) => {
     await page.setViewportSize(viewport);
@@ -341,7 +370,7 @@ for (const viewport of [PORTRAIT_PHONE, LANDSCAPE_PHONE, DESKTOP]) {
     const exitBounds = await page.locator('.view-controls').boundingBox();
     expect(exitBounds.width).toBe(44);
     expect(exitBounds.height).toBe(44);
-    for (const selector of ['.app-header', '#match-setup', '#restart-button', '#legend', '.dice-hint', '.app-footer']) {
+    for (const selector of ['.app-header', '#match-setup', '#restart-button', '#legend', '.dice-hint', '.app-footer', '.certification-link']) {
       await expect(page.locator(selector)).toBeHidden();
     }
     for (const selector of ['#board', '#dice-tray', '#dice-actions', '#status-bar', '#fullscreen-button']) {
@@ -380,6 +409,7 @@ for (const viewport of [PORTRAIT_PHONE, LANDSCAPE_PHONE, DESKTOP]) {
     await expect(page.locator('.view-controls button:visible')).toHaveCount(1);
     await expect(page.locator('html')).not.toHaveAttribute('data-fullscreen-requests');
     await expect(page.locator('#match-setup')).toBeHidden();
+    await expect(page.locator('.certification-link')).toBeHidden();
     await expect(page.locator('#dice-panel')).toHaveCSS('transform', 'none');
     await expect(page.locator('#match-messages')).toHaveCSS('transform', 'none');
     await planDice(page, PLAY_PLAN);
@@ -392,6 +422,7 @@ for (const viewport of [PORTRAIT_PHONE, LANDSCAPE_PHONE, DESKTOP]) {
     await fill.click();
     await expect(page.locator('.view-controls button:visible')).toHaveCount(2);
     await expect(page.locator('#match-setup')).toBeVisible();
+    await expect(page.locator('.certification-link')).toBeVisible();
     await fullscreen.click();
     await expect(fill).toHaveAttribute('aria-pressed', 'false');
     await expect(fullscreen).toHaveAttribute('aria-pressed', 'true');
@@ -641,9 +672,11 @@ test('fullscreen: native entry and browser exit restore the controls', async ({ 
   await toggle.click();
   await expect.poll(() => page.evaluate(() => document.fullscreenElement === document.documentElement)).toBe(true);
   await expect(page.locator('#match-setup')).toBeHidden();
+  await expect(page.locator('.certification-link')).toBeHidden();
   await page.evaluate(() => document.exitFullscreen());
   await expect(toggle).toHaveAttribute('aria-pressed', 'false');
   await expect(page.locator('#match-setup')).toBeVisible();
+  await expect(page.locator('.certification-link')).toBeVisible();
 });
 
 test('fullscreen: a refused native request keeps the board-only view usable', async ({ page }) => {

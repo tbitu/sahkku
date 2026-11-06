@@ -1,7 +1,7 @@
 /*
  * Styling for the open-license 2D Sáhkku client.
  *
- * Everything is drawn with CSS and inline SVG — no 3D runtime, no WebGL, no external fonts or
+ * Game elements are drawn with CSS and inline SVG — no 3D runtime, no WebGL, no external fonts or
  * textures. The board is a fluid CSS grid whose column count comes from the ruleset through the
  * `--board-columns` custom property, so the layout follows the data rather than a hardcoded 15.
  */
@@ -94,6 +94,10 @@ body {
 }
 
 .app-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
   color: var(--ink-dim);
   font-size: 0.75rem;
   text-align: center;
@@ -101,6 +105,27 @@ body {
 
 .app-footer p {
   margin: 0;
+}
+
+.certification-link {
+  flex-shrink: 0;
+  border-radius: 50%;
+}
+
+.certification-link img {
+  display: block;
+}
+
+@media (min-width: 901px) {
+  .certification-link img {
+    width: 80px;
+    height: 80px;
+  }
+}
+
+.certification-link:focus-visible {
+  outline: 2px solid var(--selected);
+  outline-offset: 4px;
 }
 
 .tabletop {
