@@ -57,7 +57,7 @@ export const LocaleInfos: readonly LocaleInfo[] = [
 const englishStrings = {
   app: {
     title: "Sáhkku",
-    subtitle: "Traditional Sámi running-fight board game — open-license 2D client",
+    subtitle: "Traditional Sámi running-fight board game",
     footer:
       "Sáhkku is a traditional game of the Sámi people. Rules engine, agents and this 2D client are open source.",
   },
@@ -311,7 +311,7 @@ export type StringKey = string;
 const northSamiStrings: StringTable = {
   app: {
     title: "Sáhkku",
-    subtitle: "Sámi árbevirolaš viehkanstallan-speallu — rabas 2D-klienta",
+    subtitle: "Sámi árbevirolaš viehkanstallan-speallu",
     footer:
       "Sáhkku lea sámi álbmoga árbevirolaš speallu. Njuolggadusmotora, agenttat ja dán 2D-klienta leat rabas gáldokoda.",
   },
@@ -553,7 +553,7 @@ const northSamiStrings: StringTable = {
 const norwegianStrings: StringTable = {
   app: {
     title: "Sáhkku",
-    subtitle: "Tradisjonelt samisk løpe- og fangebrettspill — åpen 2D-klient",
+    subtitle: "Tradisjonelt samisk løpe- og fangebrettspill",
     footer:
       "Sáhkku er et tradisjonelt spill for det samiske folket. Regelmotoren, agentene og denne 2D-klienten er åpen kildekode.",
   },
