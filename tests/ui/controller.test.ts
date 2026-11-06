@@ -201,11 +201,14 @@ describe("board geometry (derived from the ruleset, never hardcoded)", () => {
     expect(carvingKinds(rules.setup.queens.P1.x, rules.setup.queens.P1.row)).toContain("queen");
     expect(carvingKinds(rules.setup.queens.P2.x, rules.setup.queens.P2.row)).toContain("queen");
 
-    // ...and so do the end columns, where the figure-of-eight track turns on every row.
-    for (let y = 0; y < geometry.height; ++y) {
-      expect(carvingKinds(0, y)).toContain("turning");
-      expect(carvingKinds(geometry.width - 1, y)).toContain("turning");
-    }
+    const expectedCarvedPlaces = [
+      [rules.setup.king.x, rules.setup.king.row],
+      [rules.setup.queens.P1.x, rules.setup.queens.P1.row],
+      [rules.setup.queens.P2.x, rules.setup.queens.P2.row],
+    ]
+      .map(([x, y]) => BoardLayout.indexFromCoordinates(geometry.width, geometry.height, x, y))
+      .sort((a, b) => a - b);
+    expect([...geometry.decorations.keys()].sort((a, b) => a - b)).toEqual(expectedCarvedPlaces);
   });
 });
 

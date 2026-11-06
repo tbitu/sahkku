@@ -199,7 +199,6 @@ const englishStrings = {
       king: "King's starting cell",
       queenP1: "P1 queen's starting cell",
       queenP2: "P2 queen's starting cell",
-      turning: "Track turning",
     },
     cell: {
       position: "Line {x}, row {y}",
@@ -265,7 +264,7 @@ const englishStrings = {
     },
     board: {
       title: "The board and the track",
-      body: "The board is three rows of fifteen carved cells. The two outer rows are the home rows and the row between them is shared. Soldiers follow a continuous figure-of-eight track: along their home row, back along the middle row, along the opponent's home row, back along the middle row again, then onto their home row to repeat the lap. Reaching the end of the opponent's row does not end movement: the next step turns onto the middle row. The middle row is visited twice per lap (the diagram separates the two passes for clarity). The other player follows the mirrored route. X carvings mark the king's and queens' starting cells and the track turns.",
+      body: "The board is three rows of fifteen carved cells. The two outer rows are the home rows and the row between them is shared. Soldiers follow a continuous figure-of-eight track: along their home row, back along the middle row, along the opponent's home row, back along the middle row again, then onto their home row to repeat the lap. Reaching the end of the opponent's row does not end movement: the next step turns onto the middle row. The middle row is visited twice per lap (the diagram separates the two passes for clarity). The other player follows the mirrored route. The three X carvings mark the king's and queens' starting cells in the middle row.",
     },
     start: {
       title: "Who starts",
@@ -454,7 +453,6 @@ const northSamiStrings: StringTable = {
       king: "Gonagasa bassi saji",
       queenP1: "P1 dronninga bassi saji",
       queenP2: "P2 dronninga bassi saji",
-      turning: "Báni jorru",
     },
     cell: {
       position: "Linjá {x}, ráiddu {y}",
@@ -697,7 +695,6 @@ const norwegianStrings: StringTable = {
       king: "Kongens hellige rute",
       queenP1: "Hellig rute for P1s dronning",
       queenP2: "Hellig rute for P2s dronning",
-      turning: "Banens sving",
     },
     cell: {
       position: "Linje {x}, rad {y}",

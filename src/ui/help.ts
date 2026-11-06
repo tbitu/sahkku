@@ -204,10 +204,10 @@ function figureBoard(doc: Document): SVGElement {
     }
   }
 
-  // The king's starting cell and the end-of-lap turns.
+  // The king's and queens' starting cells.
   svg.appendChild(svgPath(doc, "M110 58 L122 74 M122 58 L110 74", "help-mark"));
-  svg.appendChild(svgPath(doc, "M24 24 L34 34 M34 24 L24 34", "help-mark"));
-  svg.appendChild(svgPath(doc, "M206 90 L216 100 M216 90 L206 100", "help-mark"));
+  svg.appendChild(svgPath(doc, "M55 58 L67 74 M67 58 L55 74", "help-mark"));
+  svg.appendChild(svgPath(doc, "M169 58 L181 74 M181 58 L169 74", "help-mark"));
   return svg;
 }
 

@@ -540,7 +540,7 @@ html.is-expanded,
   .cell.is-winning-to { animation: none; }
 }
 
-/* Carved X markings on the king's and queens' starting cells and the track turns. */
+/* Carved X markings on the king's and queens' starting cells. */
 .carving-layer {
   position: absolute;
   inset: 0;
@@ -572,11 +572,6 @@ html.is-expanded,
 
 .carving::after {
   transform: rotate(-45deg);
-}
-
-.carving--turning {
-  inset: 8%;
-  opacity: 0.34;
 }
 
 .carving--king {

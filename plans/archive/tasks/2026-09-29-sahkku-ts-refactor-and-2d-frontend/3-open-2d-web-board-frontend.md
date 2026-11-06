@@ -70,7 +70,7 @@ The legacy presentation layer depends on Unity 6 WebGL with 3D mesh models, mate
     - Row 0: P1 (Women) home row.
     - Row 1: Middle row (shared battleground traversed twice in figure-of-8 track).
     - Row 2: P2 (Men) home row.
-  - Carved ornamentation: Render traditional decorative line borders and "X" carvings on special cells (x=7 y=1 for King start, x=11 y=1 for P1 Queen, x=3 y=1 for P2 Queen, and end-column turnings).
+  - Carved ornamentation: Render "X" carvings only on the three special middle-row cells (x=7 y=1 for King start, x=11 y=1 for P1 Queen, and x=3 y=1 for P2 Queen).
   - Coordinate system aligns 1:1 with `RulesEngine` place indices `(y * 15 + x)`.
 - **REQ_PIECE_TOKENS**: In `src/ui/pieces.ts`:
   - 2D SVG / CSS tokens representing:

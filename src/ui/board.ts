@@ -2,10 +2,8 @@
  * The 2D board view: a fluid CSS grid of 15 × 3 carved cells, the pieces standing on them and the
  * highlight overlays the interaction needs.
  *
- * Board geometry — its size, the row roles and the carved "X" cells — is *derived from the ruleset*,
- * never hardcoded: the width and height come from `board`, the home rows from the soldier setup and
- * the track turnings from `track.legs`. A different ruleset therefore paints a different board
- * without a line changing here.
+ * Board geometry — its size, the row roles and the carved "X" cells — is derived from the ruleset.
+ * The X carvings mark the king's and queens' starting cells.
  *
  * The view is a pure function of the `MatchViewModel` it is handed: it owns no game state and decides
  * nothing, it only paints what the controller reported. Its one piece of *text* is the row labels and
@@ -16,13 +14,12 @@
 import { defaultTranslate, type Translator } from "../locale/i18n";
 import { PieceOwner } from "../rules/domain";
 import type { RuleSet } from "../rules/ruleset";
-import { TrackDirections } from "../rules/ruleset";
 import { BoardLayout } from "../rules/track";
 import type { CellView, MatchViewModel } from "./controller";
 import { PieceRenderer, ownerNameKey } from "./pieces";
 
-/** The three traditional carvings cut into the board. */
-export type DecorationKind = "king" | "queen" | "turning";
+/** The three starting-cell carvings shown on the board. */
+export type DecorationKind = "king" | "queen";
 
 export interface CellDecoration {
   kind: DecorationKind;
@@ -46,9 +43,8 @@ export interface BoardGeometry {
 
 /**
  * Derives the static geometry from the ruleset: the grid size, which row belongs to whom, and the
- * cells that carry a carving (the king's seat, both queens' seats and the end columns where the
- * figure-of-eight track turns). `translate` supplies the labels only; the geometry itself is ruleset
- * data and is identical in every language.
+ * king's and queens' starting cells. `translate` supplies the labels only; the geometry itself is
+ * ruleset data and is identical in every language.
  */
 export function boardGeometry(rules: RuleSet, translate: Translator = defaultTranslate): BoardGeometry {
   const width = rules.board.width;
@@ -94,14 +90,6 @@ export function boardGeometry(rules: RuleSet, translate: Translator = defaultTra
     kind: "queen",
     label: t("board.carving.queenP2"),
   });
-
-  // Every leg of the lap starts and ends on an end column; that is where the track bends.
-  for (const leg of rules.track.legs) {
-    const columns = leg.direction === TrackDirections.Right ? [0, width - 1] : [width - 1, 0];
-    for (const x of columns) {
-      carve(x, leg.row, { kind: "turning", label: t("board.carving.turning") });
-    }
-  }
 
   return { width, height, rowLabels, rowKind, decorations };
 }
